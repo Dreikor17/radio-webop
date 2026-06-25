@@ -278,13 +278,13 @@
     if (s.baud) $("baud").value = s.baud;
     return s;
   }
-  async function doConnect(body) {
+  async function doConnect(body, silent) {
     const btn = $("connectBtn"); btn.textContent = "Connecting…"; btn.disabled = true;
     try {
       const r = await fetch("/api/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (!j.ok) alert("Connect failed: " + (j.error || "unknown"));
-    } catch (e) { alert("Connect error: " + e); }
+      if (!j.ok && !silent) alert("Connect failed: " + (j.error || "unknown"));
+    } catch (e) { if (!silent) alert("Connect error: " + e); }
     finally { btn.textContent = "Connect"; btn.disabled = false; }
   }
   $("connectBtn").onclick = () => {
@@ -376,7 +376,8 @@
     updateConnFields();
     if (status && status.connected) return;       // server already connected — leave it
     const body = buildConnectBody();               // else connect to the remembered method
-    if (body.transport === "lan" && !body.host) doConnect({ transport: "sim" });
-    else doConnect(body);
+    // silent: a failed auto-connect (e.g. remembered radio is off) shouldn't alert
+    if (body.transport === "lan" && !body.host) doConnect({ transport: "sim" }, true);
+    else doConnect(body, true);
   });
 })();

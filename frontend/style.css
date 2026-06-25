@@ -166,6 +166,44 @@ select,input,.baud{
 .sl input[type=range]::-webkit-slider-thumb{margin:0}
 .sl-val{font-family:var(--mono);font-size:11px;color:#bfe6ff;text-align:right;font-weight:600}
 
+.ver{font-size:10px;color:var(--txt-dim);font-weight:600;letter-spacing:.5px;margin-left:7px}
+
+/* ===== responsive / touch ===== */
 @media (max-width:960px){
   .radio{grid-template-columns:1fr}
+}
+@media (max-width:680px){
+  body{padding:8px;overflow-x:hidden}
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px 10px;margin-bottom:10px}
+  .brand{width:100%;font-size:16px}
+  .conn{width:100%;flex-wrap:wrap;gap:6px}
+  #led{flex:0 0 auto}
+  .connlabel{flex:1 1 auto;min-width:0}
+  #transport{flex:1 1 150px;min-height:42px}
+  .baud{flex:1 1 80px}
+  .lan-fields{flex:1 1 100%;flex-wrap:wrap;gap:6px}
+  .lan-host{flex:1 1 100%}
+  .lan-user,.lan-pass{flex:1 1 45%}
+  .ctl-btn{flex:1 1 auto;min-height:44px}
+  .radio{padding:10px;gap:10px;border-radius:12px}
+  .display{padding:10px}
+  .freq{font-size:clamp(30px,11vw,46px)}
+  .freq-units{padding-bottom:4px}
+  #spectrum{height:120px}
+  #waterfall{height:200px}
+  .scope-ctl{gap:6px}
+  .scope-ctl .hint{display:none}
+  .key{min-height:44px;padding:11px 6px}
+  .sc-btn{min-height:38px;padding:8px 11px}
+  .freq-entry,#step,#freqSet{min-height:42px}
+  .dial{width:180px;height:180px}
+  .dial-knob{width:148px;height:148px}
+  .sl{grid-template-columns:34px 1fr 44px}
+  .sl input[type=range]{height:30px}
+  .sl-val{font-size:12px}
+}
+@media (max-width:400px){
+  .freq{font-size:clamp(26px,10vw,36px)}
+  .band-grid{grid-template-columns:repeat(3,1fr)}
+  .key{font-size:12px}
 }
