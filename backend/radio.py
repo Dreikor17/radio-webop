@@ -32,6 +32,12 @@ FILTER_BW = {
 # A sensible default frequency per band button (Hz)
 BAND_FREQ = {"144": 144_200_000, "430": 432_100_000, "1200": 1_296_100_000}
 
+# CI-V 1A 05 data numbers for MOD Input (model-specific). On LAN connect we route
+# TX modulation to LAN so the browser mic actually transmits; restored on disconnect.
+MOD_DATAOFF = (0x01, 0x15)     # DATA OFF MOD setting (modulation source for voice modes)
+LAN_MOD_LEVEL = (0x01, 0x14)   # LAN MOD Level
+MOD_LAN = 0x05                 # value that selects the LAN modulation source
+
 ScopeCb = Callable[[civ.ScopeSweep], None]
 StateCb = Callable[[dict], None]
 
@@ -57,6 +63,9 @@ class Radio:
         self.on_scope: Optional[ScopeCb] = None
         self.on_state: Optional[StateCb] = None
         self.on_audio: Optional[Callable[[bytes], None]] = None
+        self._modsrc_orig: Optional[int] = None     # original DATA OFF MOD (for restore)
+        self._lanmod_orig: Optional[int] = None      # original LAN MOD Level (for restore)
+        self._mod_managed = False
 
         self.state = {
             "connected": False,
@@ -126,6 +135,25 @@ class Radio:
         threading.Thread(target=self._zero_power_all_bands, daemon=True,
                          name="civ-pwr0").start()
 
+        # over LAN, route TX modulation to the LAN input so the browser mic works
+        if getattr(transport, "supports_audio", False):
+            threading.Thread(target=self._setup_lan_mod, daemon=True,
+                             name="civ-lanmod").start()
+
+    def _setup_lan_mod(self) -> None:
+        """Route TX modulation to LAN so the browser mic actually transmits.
+        Reads the current DATA OFF MOD + LAN MOD Level first, so disconnect can
+        restore them and leave local mic operation untouched."""
+        self._write(civ.build(0x1A, 0x05, bytes(MOD_DATAOFF)))     # read DATA OFF MOD
+        self._write(civ.build(0x1A, 0x05, bytes(LAN_MOD_LEVEL)))   # read LAN MOD Level
+        time.sleep(0.6)
+        if not self.state["connected"]:
+            return
+        self._write(civ.build(0x1A, 0x05, bytes(MOD_DATAOFF) + bytes([MOD_LAN])))   # source -> LAN
+        if self._lanmod_orig == 0:        # if the LAN MOD level was 0 there'd be no audio
+            self._write(civ.build(0x1A, 0x05, bytes(LAN_MOD_LEVEL) + civ.level_to_bcd(128)))
+        self._mod_managed = True
+
     def _zero_power_all_bands(self) -> None:
         """Set RF power to 0 on 144/430/1200, then restore the original freq.
         RF power is per-band and CI-V only addresses the current band, so we
@@ -154,11 +182,19 @@ class Radio:
             self._poll_thread = None
         if self._tp:
             try:
+                if self._mod_managed and self._modsrc_orig is not None:   # restore MOD Input
+                    self._write(civ.build(0x1A, 0x05, bytes(MOD_DATAOFF) + bytes([self._modsrc_orig])))
+                    if self._lanmod_orig == 0:
+                        self._write(civ.build(0x1A, 0x05, bytes(LAN_MOD_LEVEL) + civ.level_to_bcd(0)))
                 self._write(civ.build(0x27, 0x11, b"\x00"))  # stop scope data
+                time.sleep(0.15)
             except Exception:
                 pass
             self._tp.stop()
             self._tp = None
+        self._mod_managed = False
+        self._modsrc_orig = None
+        self._lanmod_orig = None
         self.state["connected"] = False
         self.state["transport"] = None
         self.state["audio"] = False
@@ -215,6 +251,12 @@ class Radio:
             self.state["smeter"] = lvl
             self.state["smeter_s"] = smeter_label(lvl)
             changed = True
+        elif c == 0x1A and s == 0x05 and len(d) >= 3:    # MOD Input read response
+            if d[0] == MOD_DATAOFF[0] and d[1] == MOD_DATAOFF[1] and self._modsrc_orig is None:
+                self._modsrc_orig = d[2]
+            elif (d[0] == LAN_MOD_LEVEL[0] and d[1] == LAN_MOD_LEVEL[1]
+                  and len(d) >= 4 and self._lanmod_orig is None):
+                self._lanmod_orig = civ.bcd_to_level(d[2:4])
         if changed:
             self._recalc_filter_bw()
             self._emit_state()

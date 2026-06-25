@@ -5,6 +5,11 @@ adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Over LAN, the radio's **MOD Input is set to LAN automatically on connect** (and
+  restored on disconnect), so the browser mic transmits without changing the
+  radio's menu. The LAN MOD level is bumped if it was 0.
+
 ### Changed
 - **PTT is now tap-to-toggle** (was press-and-hold) so it works on touchscreens:
   tap to key TX, tap again for RX. Latched TX auto-releases for safety on
