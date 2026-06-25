@@ -33,6 +33,7 @@
 </header>
 
 <main class="radio">
+  <div class="topdeck">
   <!-- ===================== DISPLAY (TFT) ===================== -->
   <section class="display">
     <div class="bands" id="bands">
@@ -90,7 +91,33 @@
     </div>
   </section>
 
-  <!-- ===================== CONTROLS ===================== -->
+    <aside class="sidekit">
+      <div class="grp dial-grp">
+        <div class="grp-title">MAIN DIAL</div>
+        <div class="dial" id="dial">
+          <div class="dial-knob" id="dialKnob"><span class="dial-mark"></span></div>
+        </div>
+        <div class="ptt-row">
+          <button class="key ptt" id="pttBtn" data-act="ptt">PTT</button>
+        </div>
+      </div>
+
+      <div class="grp audio-grp">
+        <div class="grp-title">AUDIO <span class="lan-only" id="audioAvail"></span></div>
+        <div class="row">
+          <button class="key" id="audioBtn">🔊 RX</button>
+          <button class="key ptt" id="micBtn">🎤 Mic</button>
+        </div>
+        <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
+        <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>
+        <div class="audio-note">RX plays radio audio. Mic streams to the radio's
+          modulator — it transmits only when you key <b>PTT</b> (or <b>VOX</b>).
+          PTT auto-drops after the failsafe time-out.</div>
+      </div>
+    </aside>
+  </div><!-- /topdeck -->
+
+  <!-- ===================== CONTROLS (below the waterfall) ===================== -->
   <section class="controls">
     <div class="grp">
       <div class="grp-title">BAND</div>
@@ -169,16 +196,6 @@
       </div>
     </div>
 
-    <div class="grp dial-grp">
-      <div class="grp-title">MAIN DIAL</div>
-      <div class="dial" id="dial">
-        <div class="dial-knob" id="dialKnob"><span class="dial-mark"></span></div>
-      </div>
-      <div class="ptt-row">
-        <button class="key ptt" id="pttBtn" data-act="ptt">PTT</button>
-      </div>
-    </div>
-
     <div class="grp sliders">
       <div class="grp-title">LEVELS</div>
       <label class="sl"><span>AF</span><input type="range" min="0" max="255" step="1" id="af" data-target="af"><b class="sl-val" id="afVal">0</b></label>
@@ -187,18 +204,6 @@
       <label class="sl"><span>PWR</span><input type="range" min="0" max="255" step="1" id="rfpwr" data-target="rfpwr"><b class="sl-val" id="rfpwrVal">0%</b></label>
     </div>
 
-    <div class="grp audio-grp">
-      <div class="grp-title">AUDIO <span class="lan-only" id="audioAvail"></span></div>
-      <div class="row">
-        <button class="key" id="audioBtn">🔊 RX</button>
-        <button class="key ptt" id="micBtn">🎤 Mic</button>
-      </div>
-      <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
-      <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>
-      <div class="audio-note">RX plays radio audio. Mic streams to the radio's
-        modulator — it transmits only when you key <b>PTT</b> (or <b>VOX</b>).
-        PTT auto-drops after the failsafe time-out.</div>
-    </div>
   </section>
 </main>
 

@@ -62,7 +62,7 @@ select,input,.baud{
 
 /* ---- radio bezel ---- */
 .radio{
-  max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 340px;gap:14px;
+  max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px;
   background:linear-gradient(180deg,#23272e,#16191e);
   border:1px solid #313742;border-radius:16px;padding:16px;
   box-shadow:0 20px 60px rgba(0,0,0,.5), 0 1px 0 #3a414d inset;
@@ -116,7 +116,12 @@ select,input,.baud{
 .scope-ctl .hint{color:var(--txt-dim);font-size:11px;margin-left:auto}
 
 /* ---- controls column ---- */
-.controls{display:flex;flex-direction:column;gap:10px}
+/* top deck: display (scope/waterfall) on the left, MAIN DIAL + AUDIO at the top-right */
+.topdeck{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+.sidekit{display:flex;flex-direction:column;gap:10px}
+/* controls pack into space-saving columns BELOW the waterfall */
+.controls{columns:230px;column-gap:12px}
+.controls .grp{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 12px}
 .grp{background:linear-gradient(180deg,#1d2127,#171a1f);border:1px solid #2b313b;border-radius:9px;padding:9px 10px}
 .grp-title{font-size:10px;letter-spacing:1.5px;color:var(--txt-dim);margin-bottom:7px}
 .row{display:flex;gap:6px}
@@ -176,7 +181,7 @@ select,input,.baud{
 
 /* ===== responsive / touch ===== */
 @media (max-width:960px){
-  .radio{grid-template-columns:1fr}
+  .topdeck{grid-template-columns:1fr}
 }
 @media (max-width:680px){
   body{padding:8px;overflow-x:hidden}
