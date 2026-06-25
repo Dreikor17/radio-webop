@@ -3,6 +3,13 @@
 All notable changes to Icom WebOp (IC-9700) are documented here. This project
 adheres to [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+- Microphone (TX) now shows a clear "needs HTTPS" message on insecure
+  (plain-HTTP) connections instead of a generic "access denied" — browsers only
+  expose `getUserMedia` in a secure context (HTTPS or localhost).
+
 ## [0.1.0] — 2026-06-25
 
 First release. Browser-based CI-V control panel for the Icom IC-9700 with a

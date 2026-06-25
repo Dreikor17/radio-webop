@@ -325,6 +325,13 @@
   // ONLY when PTT is engaged AND its MOD Input is set to LAN.
   let micStream = null, micSrc = null, micProc = null, micSink = null, micOn = false;
   async function startMic() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Microphone (TX) needs a secure HTTPS connection. You're on " + location.protocol +
+        " — browsers only allow the mic over HTTPS (or localhost), not plain HTTP. " +
+        "Serve the app over HTTPS (e.g. `tailscale serve`) and open the https:// address. " +
+        "RX audio still works over HTTP.");
+      return false;
+    }
     try {
       micStream = await navigator.mediaDevices.getUserMedia(
         { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
