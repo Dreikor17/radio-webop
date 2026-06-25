@@ -3,6 +3,27 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.1] — 2026-06-25
+
+Start of the full **IC-9700** control build-out (see [ROADMAP.md](ROADMAP.md) and
+`docs/CONTROL-MAP.md`). The other radios still use the shared base.
+
+### Added
+- **Dual-watch (MAIN/SUB) Radio view** for the IC-9700 — both receivers shown; tap
+  a band to make it the operating band. The active band is live; the other shows
+  its last-known values and goes live when selected (the radio reports only the
+  operating band over CI-V).
+- **Multi-meter** with a selector (S / PO / SWR / ALC / COMP / Vd / Id) — the
+  S-meter is live; the TX meters come alive while transmitting.
+- **Core RX controls** — preamp, attenuator, dial lock.
+- **RX DSP** — Noise Blanker, Noise Reduction, auto + manual notch (with width and
+  position), AGC (FAST / MID / SLOW), and twin PBT.
+- `docs/CONTROL-MAP.md` — the full map of the IC-9700's CI-V control surface with
+  the milestone build order.
+
+### Fixed
+- The connection bar now wraps at laptop / tablet widths instead of overflowing.
+
 ## [0.2.0] — 2026-06-25
 
 Merged the former **Icom WebOp (IC-9700)** and **IC-7300MK2 WebOp** apps into one
@@ -75,5 +96,6 @@ live spectrum scope + waterfall.
 - Mic capture (TX) needs a secure context (HTTPS or localhost), so it won't run
   over plain-HTTP remote access; RX audio playback works over HTTP.
 
-[0.2.0]: https://github.com/Dreikor17/icom-webop/releases/tag/v0.2.0
-[0.1.0]: https://github.com/Dreikor17/icom-webop/releases/tag/v0.1.0
+[0.2.1]: https://github.com/Dreikor17/radio-webop/releases/tag/v0.2.1
+[0.2.0]: https://github.com/Dreikor17/radio-webop/releases/tag/v0.2.0
+[0.1.0]: https://github.com/Dreikor17/radio-webop/releases/tag/v0.1.0
