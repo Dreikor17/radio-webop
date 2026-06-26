@@ -309,7 +309,8 @@
   document.querySelectorAll(".sl input[type=range]").forEach(el => {
     setFill(el);
     el.addEventListener("input", () => setFill(el));
-    el.addEventListener("wheel", e => {                 // scroll wheel adjusts the slider
+    el.addEventListener("wheel", e => {                 // only the clicked (focused) slider takes the wheel;
+      if (document.activeElement !== el) return;        // otherwise let the wheel scroll the settings panel
       e.preventDefault();
       const span = (+el.max || 100) - (+el.min || 0);
       const d = Math.max(1, Math.round(span / 64)) * (e.deltaY < 0 ? 1 : -1);
