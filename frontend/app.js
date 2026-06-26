@@ -69,7 +69,7 @@
   function updateScopeLabels(m) {
     let lo, hi, c;
     if (m.mode === 1) { lo = m.lower; hi = m.upper; c = (lo + hi) / 2; }
-    else { lo = m.center - m.span / 2; hi = m.center + m.span / 2; c = m.center; }
+    else { const vc = m.tuned || m.center; lo = vc - m.span / 2; hi = vc + m.span / 2; c = vc; }  // center on the tuned freq
     $("lblLeft").textContent = formatFreq(lo);
     $("lblRight").textContent = formatFreq(hi);
     $("lblCenter").textContent = formatFreq(m.tuned || c);

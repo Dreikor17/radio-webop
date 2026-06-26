@@ -108,7 +108,7 @@
       const m = this.meta;
       let lo, hi;
       if (m.mode === 1 && m.lower && m.upper) { lo = m.lower; hi = m.upper; }
-      else { const span = m.span || 50000; lo = (m.center || f) - span / 2; hi = (m.center || f) + span / 2; }
+      else { const span = m.span || 50000; const vc = m.tuned || m.center || f; lo = vc - span / 2; hi = vc + span / 2; }
       if (hi <= lo) return this.W / 2;
       return ((f - lo) / (hi - lo)) * this.W;
     }
@@ -116,8 +116,29 @@
     visibleRange() {
       const m = this.meta;
       if (m.mode === 1 && m.lower && m.upper) return [m.lower, m.upper];
-      const span = m.span || 50000, c = m.center || m.tuned || 0;
+      // center mode: the VIEW rides the tuned freq (always dead-center), not the
+      // radio's reported sweep center (which lags a tune and made the view snap).
+      const span = m.span || 50000, c = m.tuned || m.center || 0;
       return [c - span / 2, c + span / 2];
+    }
+
+    // sweep value at output pixel x. The VIEW is centered on the tuned freq while the
+    // SWEEP is centered on its own center_hz, so during a tune the data is offset to
+    // keep the tuned freq dead-center (returns -1 where x falls outside the sweep).
+    _dataAtX(data, x) {
+      const m = this.meta, n = data.length || 1;
+      let viewLo, viewHi, sweepLo, sweepHi;
+      if (m.mode === 1 && m.lower && m.upper) {
+        viewLo = sweepLo = m.lower; viewHi = sweepHi = m.upper;
+      } else {
+        const span = m.span || 50000;
+        const vc = m.tuned || m.center || 0, sc = m.center || (m.tuned || 0);
+        viewLo = vc - span / 2; viewHi = vc + span / 2;
+        sweepLo = sc - span / 2; sweepHi = sc + span / 2;
+      }
+      const freq = viewLo + (x / this.W) * (viewHi - viewLo);
+      const idx = ((freq - sweepLo) / (sweepHi - sweepLo)) * n;
+      return (idx < 0 || idx >= n) ? -1 : data[idx | 0];
     }
 
     // distinct band-plan kinds currently visible (for the color-key legend), in display order
@@ -156,11 +177,11 @@
     scrollWaterfall(data) {
       const w = this.W, ctx = this.wctx;
       ctx.drawImage(this.wf, 0, 1);              // shift history down 1px
-      const row = this.rowBuf.data, n = data.length || 1;
+      const row = this.rowBuf.data;
       for (let x = 0; x < w; x++) {
-        const v = data[Math.min(n - 1, (x * n / w) | 0)];
+        const v = this._dataAtX(data, x), o = x * 4;
+        if (v < 0) { row[o] = 2; row[o + 1] = 12; row[o + 2] = 20; row[o + 3] = 255; continue; }  // off-sweep -> background
         const idx = Math.min(255, Math.round((v / AMP_MAX) * 255)) * 3;
-        const o = x * 4;
         row[o] = this.lut[idx]; row[o + 1] = this.lut[idx + 1];
         row[o + 2] = this.lut[idx + 2]; row[o + 3] = 255;
       }
@@ -184,7 +205,7 @@
       // filled spectrum
       ctx.beginPath(); ctx.moveTo(0, h);
       for (let x = 0; x < w; x++) {
-        const v = data[Math.min(n - 1, (x * n / w) | 0)];
+        const dv = this._dataAtX(data, x), v = dv < 0 ? 0 : dv;
         ctx.lineTo(x, yOf(v));
         this.maxHold[x] = Math.max(v, this.maxHold[x] * 0.985);
       }
@@ -195,7 +216,7 @@
       ctx.fillStyle = grad; ctx.fill();
       // line
       ctx.beginPath();
-      for (let x = 0; x < w; x++) { const v = data[Math.min(n - 1, (x * n / w) | 0)]; x ? ctx.lineTo(x, yOf(v)) : ctx.moveTo(x, yOf(v)); }
+      for (let x = 0; x < w; x++) { const dv = this._dataAtX(data, x), v = dv < 0 ? 0 : dv; x ? ctx.lineTo(x, yOf(v)) : ctx.moveTo(x, yOf(v)); }
       ctx.strokeStyle = "#5ff0c8"; ctx.lineWidth = 1.2; ctx.stroke();
       // max hold
       ctx.beginPath();
@@ -208,16 +229,13 @@
       ctx.clearRect(0, 0, w, h);
       // filter passband band (offset by mode)
       const bw = m.filterBw || 0, tuned = m.tuned || 0;   // explicit 0 (AF scope) -> no marker
-      // In CENTER mode the scope rides the tuned freq, so anchor the marker/filter to the
-      // scope CENTER (always exactly mid-screen) rather than the optimistic tuned value —
-      // that lags the sweep center while tuning and makes the marker jitter. Fixed mode
-      // keeps using the tuned freq so the marker moves through the fixed window.
-      const ref = (m.mode === 1) ? tuned : (m.center || tuned);
+      // freqToX centers the view on the tuned freq, so in center mode freqToX(tuned)
+      // is always mid-screen and the marker/filter ride the center with zero jitter.
       if (bw > 0 && tuned) {
         let loF, hiF;
-        if (this.opMode === "USB" || this.opMode === "DV" || this.opMode === "RTTY-R") { loF = ref; hiF = ref + bw; }
-        else if (this.opMode === "LSB" || this.opMode === "RTTY") { loF = ref - bw; hiF = ref; }
-        else { loF = ref - bw / 2; hiF = ref + bw / 2; }
+        if (this.opMode === "USB" || this.opMode === "DV" || this.opMode === "RTTY-R") { loF = tuned; hiF = tuned + bw; }
+        else if (this.opMode === "LSB" || this.opMode === "RTTY") { loF = tuned - bw; hiF = tuned; }
+        else { loF = tuned - bw / 2; hiF = tuned + bw / 2; }
         const x0 = this.freqToX(loF), x1 = this.freqToX(hiF);
         ctx.fillStyle = "rgba(90,200,255,.16)";
         ctx.fillRect(Math.min(x0, x1), 0, Math.abs(x1 - x0), h);
@@ -227,7 +245,7 @@
       }
       // tuned channel marker
       if (tuned) {
-        const xc = this.freqToX(ref);
+        const xc = this.freqToX(tuned);
         ctx.strokeStyle = "#ff9a2e"; ctx.lineWidth = 1.4;
         ctx.beginPath(); ctx.moveTo(xc, 0); ctx.lineTo(xc, h); ctx.stroke();
         // little triangle at top
