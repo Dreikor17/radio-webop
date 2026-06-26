@@ -488,7 +488,14 @@
     const at = $("attBtn"); if (at) at.style.display = p.has_att ? "" : "none";
     applyTitles();
   }
-  $("radioSel").addEventListener("change", () => { renderRadio(selectedRadio()); saveConn(); });
+  $("radioSel").addEventListener("change", () => {
+    renderRadio(selectedRadio());
+    saveConn();
+    if (state.connected) {                          // switching radios -> drop the current connection
+      fetch("/api/disconnect", { method: "POST" });
+      $("conn").classList.add("open");              // reopen the connect controls so they can reconnect
+    }
+  });
 
   // ---- connection controls ----
   async function loadPorts() {
