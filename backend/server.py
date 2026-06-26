@@ -16,6 +16,9 @@ from __future__ import annotations
 import asyncio
 import json
 import struct
+import threading
+import time
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Set
@@ -26,7 +29,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from . import civ, profiles
+from . import __version__, civ, profiles
 from .lan import LanTransport
 from .radio import Radio
 from .transport import SerialTransport, SimTransport, YaesuSimTransport, available_ports
@@ -40,6 +43,54 @@ LEVEL_TARGETS = {"af": 0x01, "rf": 0x02, "sql": 0x03, "rfpwr": 0x0A,
                  "mic": 0x0B, "comp_level": 0x0E, "mon_level": 0x15, "vox_gain": 0x16}
 
 radio = Radio()
+
+
+# -- update check (latest GitHub release) ------------------------------------
+_REPO = "Dreikor17/radio-webop"
+_VER_TTL = 3600.0                          # re-check at most hourly
+_latest = {"tag": None, "url": None, "ts": 0.0}
+_latest_lock = threading.Lock()
+
+
+def _ver_tuple(s: str) -> tuple:
+    """'v0.2.02' -> (0, 2, 2); leading-digit per dotted part, so 0.2.02 == 0.2.2."""
+    out = []
+    for part in (s or "").lstrip("vV").split("."):
+        digits = ""
+        for ch in part:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        out.append(int(digits) if digits else 0)
+    return tuple(out) or (0,)
+
+
+def _fetch_latest_release() -> None:
+    tag = url = None
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{_REPO}/releases/latest",
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "radio-webop"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        tag, url = data.get("tag_name"), data.get("html_url")
+    except Exception:
+        pass                               # offline / rate-limited / no release -> skip quietly
+    with _latest_lock:
+        if tag:
+            _latest["tag"], _latest["url"] = tag, url
+        _latest["ts"] = time.monotonic()
+
+
+def _maybe_check_update() -> None:
+    """Kick a background release check if the cache is empty or stale."""
+    with _latest_lock:
+        stale = _latest["ts"] == 0.0 or (time.monotonic() - _latest["ts"]) >= _VER_TTL
+        if stale:
+            _latest["ts"] = time.monotonic()   # claim the slot so callers don't fan out
+    if stale:
+        threading.Thread(target=_fetch_latest_release, daemon=True, name="ver-check").start()
 
 
 class Hub:
@@ -143,6 +194,19 @@ async def index(request):
 
 async def api_radios(request):
     return JSONResponse({"radios": [p.to_json() for p in profiles.PROFILES.values()]})
+
+
+async def api_version(request):
+    _maybe_check_update()
+    with _latest_lock:
+        latest, url = _latest["tag"], _latest["url"]
+    available = bool(latest) and _ver_tuple(latest) > _ver_tuple(__version__)
+    return JSONResponse({
+        "current": __version__,
+        "latest": latest,
+        "update_available": available,
+        "url": url,
+    })
 
 
 async def api_ports(request):
@@ -293,12 +357,14 @@ async def _lifespan(app):
     # capture the serving loop so radio threads can schedule WS sends onto it.
     # (lifespan, not on_startup= — Starlette removed the on_startup/on_shutdown kwargs.)
     hub.loop = asyncio.get_running_loop()
+    _maybe_check_update()                  # warm the update-check cache at startup
     yield
 
 
 routes = [
     Route("/", index),
     Route("/api/radios", api_radios),
+    Route("/api/version", api_version),
     Route("/api/ports", api_ports),
     Route("/api/connect", api_connect, methods=["POST"]),
     Route("/api/disconnect", api_disconnect, methods=["POST"]),

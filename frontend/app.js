@@ -1039,6 +1039,25 @@
   };
   $("vol").oninput = (e) => { if (audioGain) audioGain.gain.value = (+e.target.value) / 100; };
 
+  // ---- update check (latest GitHub release) ----
+  (function () {
+    const link = $("verUpdate");
+    if (!link) return;
+    function check(retry) {
+      fetch("/api/version").then((r) => r.json()).then((v) => {
+        if (v.update_available && v.url) {
+          link.href = v.url;
+          link.textContent = "↑ " + (v.latest || "update");
+          link.title = "A newer release (" + v.latest + ") is available — click for the release notes";
+          link.hidden = false;
+        } else if (!v.latest && retry) {
+          setTimeout(() => check(false), 3500);   // backend hadn't finished its GitHub check yet
+        }
+      }).catch(() => {});
+    }
+    check(true);
+  })();
+
   // ---- boot ----
   requestAnimationFrame(() => scope.resize());          // re-measure once the console layout settles
   window.addEventListener("load", () => scope.resize());
