@@ -61,7 +61,11 @@
       // read the laid-out heights so the waterfall fills its pane (falls back to fixed)
       this.specH = Math.max(80, Math.floor(this.spec.clientHeight) || 150);
       this.wfH = Math.max(120, Math.floor(this.wf.clientHeight) || 240);
-      for (const [c, h] of [[this.spec, this.specH], [this.ov, this.specH + this.wfH]]) {
+      // overlay spans the FULL scope incl. the split gap so canvas-Y == display-Y;
+      // otherwise the band-plan strip (drawn at the spectrum bottom) bleeds onto the
+      // split handle that sits between the spectrum and waterfall.
+      this.scopeH = Math.max(this.specH + this.wfH, Math.floor(this.wrap.clientHeight) || 0);
+      for (const [c, h] of [[this.spec, this.specH], [this.ov, this.scopeH]]) {
         c.width = w * dpr; c.height = h * dpr;
         c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
       }
@@ -82,7 +86,7 @@
       this.meta = { mode: 0, center: 0, span: this.meta.span || 50000, lower: 0, upper: 0, tuned: 0, filterBw: 0 };
       this.wctx.fillStyle = "#020c14"; this.wctx.fillRect(0, 0, this.W, this.wfH);
       this.sctx.clearRect(0, 0, this.W, this.specH);
-      this.octx.clearRect(0, 0, this.W, this.specH + this.wfH);
+      this.octx.clearRect(0, 0, this.W, this.scopeH || (this.specH + this.wfH));
     }
 
     freqToX(f) {
@@ -104,8 +108,8 @@
     // band-plan segment under a canvas-space point (for hover tooltips), else null
     bandplanSegAt(px, py) {
       if (!this.showBandplan || !this.bandplan) return null;
-      const sy = this.specH - STRIP_H;
-      if (py < sy - 2 || py > this.specH + 2) return null;
+      const sy = this.specH - STRIP_H - 3;
+      if (py < sy - 2 || py > sy + STRIP_H + 2) return null;
       const [lo, hi] = this.visibleRange();
       for (const seg of this.bandplan) {
         if (seg.hi <= lo || seg.lo >= hi) continue;
@@ -173,7 +177,7 @@
     }
 
     drawOverlay() {
-      const ctx = this.octx, w = this.W, h = this.specH + this.wfH, m = this.meta;
+      const ctx = this.octx, w = this.W, h = this.scopeH || (this.specH + this.wfH), m = this.meta;
       ctx.clearRect(0, 0, w, h);
       // filter passband band (offset by mode)
       const bw = m.filterBw || 0, tuned = m.tuned || m.center || 0;
@@ -209,7 +213,7 @@
       if (!this.showBandplan || !this.bandplan || !this.bandplan.length) return;
       const ctx = this.octx, w = this.W;
       const [lo, hi] = this.visibleRange();
-      const sy = this.specH - STRIP_H;
+      const sy = this.specH - STRIP_H - 3;     // 3px clear of the spectrum/waterfall split below
       const colors = global.BANDPLAN_COLORS || {};
       ctx.font = "10px Consolas, monospace";
       ctx.textBaseline = "middle";

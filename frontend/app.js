@@ -478,7 +478,7 @@
       if (!scope.showBandplan || !tip) return;
       const r = ov.getBoundingClientRect();
       const px = (e.clientX - r.left) * (scope.W / r.width);
-      const py = (e.clientY - r.top) * ((scope.specH + scope.wfH) / r.height);
+      const py = (e.clientY - r.top) * ((scope.scopeH || (scope.specH + scope.wfH)) / r.height);
       const seg = scope.bandplanSegAt(px, py);
       if (!seg) { tip.hidden = true; return; }
       const base = colors[seg.kind] || "rgba(150,160,180,";

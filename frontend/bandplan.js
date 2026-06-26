@@ -90,18 +90,18 @@
     { lo: 1295.800, hi: 1296.080, label: "EME CW/SSB", kind: "weaksignal", desc: "Weak-signal EME (moonbounce): CW/SSB/digital. JT65c/Q65 near 1296.000 MHz." },
     { lo: 1296.080, hi: 1296.200, label: "SSB call 1296.1", kind: "calling", desc: "Weak-signal terrestrial CW/SSB. 1296.100 MHz = national CW/SSB calling frequency." },
     { lo: 1296.200, hi: 1296.400, label: "CW beacons", kind: "beacon", desc: "Propagation beacons and weak-signal digital." },
-    { lo: 1296.400, hi: 1297.000, label: "Gen narrowband", kind: "weaksignal", desc: "General narrow-band weak-signal: CW/SSB/digital." },
+    { lo: 1296.400, hi: 1297.000, label: "General NB", kind: "weaksignal", desc: "General narrow-band weak-signal: CW/SSB/digital." },
     { lo: 1297.000, hi: 1300.000, label: "Digital", kind: "digital", desc: "Digital modes / data — packet and high-speed data." },
 
     // ===== HF + 6 m (FCC Part 97 license-class privileges) =====
     // 160 m
-    { lo: 1.800, hi: 2.000, label: "Gen CW/phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone (SSB), image across the band. No Tech. 1.843-2.000 SSB; AM ~1.885." },
+    { lo: 1.800, hi: 2.000, label: "General CW/phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone (SSB), image across the band. No Tech. 1.843-2.000 SSB; AM ~1.885." },
     // 80 m
     { lo: 3.500, hi: 3.525, label: "Extra CW", kind: "extra", desc: "Extra only: CW (also RTTY/data). Extra-exclusive 3.500-3.525." },
     { lo: 3.525, hi: 3.600, label: "CW/data", kind: "gen", desc: "Tech/Gen/Adv/Extra: CW & RTTY/data (no phone). Tech is CW-only here, 200 W. Data ~3.570-3.600." },
     { lo: 3.600, hi: 3.700, label: "Extra phone", kind: "extra", desc: "Extra only: CW, RTTY/data, phone (SSB), image. 3.690 DX window." },
     { lo: 3.700, hi: 3.800, label: "Adv phone", kind: "extra", desc: "Advanced/Extra: CW, RTTY/data, phone, image. No General phone below 3.800. 3.790-3.800 DX." },
-    { lo: 3.800, hi: 4.000, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone, image. 3.845 SSTV; 3.885 AM calling." },
+    { lo: 3.800, hi: 4.000, label: "General phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone, image. 3.845 SSTV; 3.885 AM calling." },
     // 60 m (channelized, 2.8 kHz channels, 100 W PEP ERP, USB)
     { lo: 5.3291, hi: 5.3319, label: "Ch1 5330.5", kind: "gen", desc: "Channel 1, center 5330.5 kHz (USB dial 5332.0). Gen/Adv/Extra. 2.8 kHz; USB/CW/data; 100 W PEP ERP." },
     { lo: 5.3451, hi: 5.3479, label: "Ch2 5346.5", kind: "gen", desc: "Channel 2, center 5346.5 kHz (USB dial 5348.0). Gen/Adv/Extra. 2.8 kHz; USB/CW/data; 100 W PEP ERP." },
@@ -113,31 +113,31 @@
     { lo: 7.025, hi: 7.125, label: "CW/data", kind: "gen", desc: "Tech/Gen/Adv/Extra: CW & RTTY/data (no phone). Tech is CW-only, 200 W. 7.040 RTTY/data DX." },
     { lo: 7.125, hi: 7.150, label: "Extra phone", kind: "extra", desc: "Extra only: CW, RTTY/data, phone (SSB), image." },
     { lo: 7.150, hi: 7.175, label: "Adv phone", kind: "extra", desc: "Advanced/Extra: CW, RTTY/data, phone, image. No General phone below 7.175." },
-    { lo: 7.175, hi: 7.300, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone, image. 7.171 SSTV; 7.290 AM calling." },
+    { lo: 7.175, hi: 7.300, label: "General phone", kind: "gen", desc: "General/Advanced/Extra: CW, RTTY/data, phone, image. 7.171 SSTV; 7.290 AM calling." },
     // 30 m
-    { lo: 10.100, hi: 10.150, label: "Gen CW/data", kind: "gen", desc: "General/Advanced/Extra: CW & RTTY/data only; NO phone/image. Secondary, 200 W PEP max. No Tech." },
+    { lo: 10.100, hi: 10.150, label: "General CW/data", kind: "gen", desc: "General/Advanced/Extra: CW & RTTY/data only; NO phone/image. Secondary, 200 W PEP max. No Tech." },
     // 20 m
     { lo: 14.000, hi: 14.025, label: "Extra CW/data", kind: "extra", desc: "Extra only. CW, RTTY, data." },
-    { lo: 14.025, hi: 14.150, label: "Gen CW/data", kind: "gen", desc: "General/Advanced/Extra. CW, RTTY, data." },
+    { lo: 14.025, hi: 14.150, label: "General CW/data", kind: "gen", desc: "General/Advanced/Extra. CW, RTTY, data." },
     { lo: 14.150, hi: 14.175, label: "Extra phone", kind: "extra", desc: "Extra only. CW, phone, image." },
     { lo: 14.175, hi: 14.225, label: "Adv+ phone", kind: "extra", desc: "Advanced/Extra. CW, phone, image. General phone starts 14.225." },
-    { lo: 14.225, hi: 14.350, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. 14.230 SSTV; 14.300 maritime net." },
+    { lo: 14.225, hi: 14.350, label: "General phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. 14.230 SSTV; 14.300 maritime net." },
     // 17 m
-    { lo: 18.068, hi: 18.110, label: "Gen CW/data", kind: "gen", desc: "General/Advanced/Extra (no Tech). CW, RTTY, data." },
-    { lo: 18.110, hi: 18.168, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image." },
+    { lo: 18.068, hi: 18.110, label: "General CW/data", kind: "gen", desc: "General/Advanced/Extra (no Tech). CW, RTTY, data." },
+    { lo: 18.110, hi: 18.168, label: "General phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image." },
     // 15 m
     { lo: 21.000, hi: 21.025, label: "Extra CW/data", kind: "extra", desc: "Extra only. CW, RTTY, data." },
-    { lo: 21.025, hi: 21.200, label: "Tech/Gen CW", kind: "tech", desc: "Technician/Novice CW only (200 W); General/Advanced/Extra CW, RTTY, data." },
+    { lo: 21.025, hi: 21.200, label: "Tech/General CW", kind: "tech", desc: "Technician/Novice CW only (200 W); General/Advanced/Extra CW, RTTY, data." },
     { lo: 21.200, hi: 21.225, label: "Extra phone", kind: "extra", desc: "Extra only. CW, phone, image." },
     { lo: 21.225, hi: 21.275, label: "Adv+ phone", kind: "extra", desc: "Advanced/Extra. CW, phone, image. General phone starts 21.275." },
-    { lo: 21.275, hi: 21.450, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. (Expanded from 21.300 in 2006.)" },
+    { lo: 21.275, hi: 21.450, label: "General phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. (Expanded from 21.300 in 2006.)" },
     // 12 m
-    { lo: 24.890, hi: 24.930, label: "Gen CW/data", kind: "gen", desc: "General/Advanced/Extra (no Tech). CW, RTTY, data." },
-    { lo: 24.930, hi: 24.990, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image." },
+    { lo: 24.890, hi: 24.930, label: "General CW/data", kind: "gen", desc: "General/Advanced/Extra (no Tech). CW, RTTY, data." },
+    { lo: 24.930, hi: 24.990, label: "General phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image." },
     // 10 m
     { lo: 28.000, hi: 28.300, label: "Tech CW/data", kind: "tech", desc: "Technician/Novice (200 W) + General/Advanced/Extra. CW, RTTY, data." },
     { lo: 28.300, hi: 28.500, label: "Tech phone", kind: "tech", desc: "Technician/Novice (200 W, SSB) + General/Advanced/Extra. CW, phone, image. 28.400 SSB calling." },
-    { lo: 28.500, hi: 29.700, label: "Gen phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. FM ~29.0-29.7; 29.600 FM calling; 29.6+ repeaters." },
+    { lo: 28.500, hi: 29.700, label: "General phone", kind: "gen", desc: "General/Advanced/Extra. CW, phone, image. FM ~29.0-29.7; 29.600 FM calling; 29.6+ repeaters." },
     // 6 m
     { lo: 50.000, hi: 50.100, label: "CW/weak-signal", kind: "all", desc: "All classes (Tech+). CW only. 50.060-50.080 beacons." },
     { lo: 50.100, hi: 51.000, label: "SSB/weak-signal", kind: "all", desc: "All classes. CW/phone/image/MCW/RTTY/data. 50.125 SSB calling; 50.100-50.125 DX window." },
