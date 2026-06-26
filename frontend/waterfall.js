@@ -55,7 +55,9 @@
       const w = Math.max(320, Math.floor(this.wrap.clientWidth));
       const dpr = window.devicePixelRatio || 1;
       this.W = w;
-      this.specH = 150; this.wfH = 240;
+      // read the laid-out heights so the waterfall fills its pane (falls back to fixed)
+      this.specH = Math.max(80, Math.floor(this.spec.clientHeight) || 150);
+      this.wfH = Math.max(120, Math.floor(this.wf.clientHeight) || 240);
       for (const [c, h] of [[this.spec, this.specH], [this.ov, this.specH + this.wfH]]) {
         c.width = w * dpr; c.height = h * dpr;
         c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -292,6 +292,13 @@
   document.querySelectorAll(".sl input[type=range]").forEach(el => {
     setFill(el);
     el.addEventListener("input", () => setFill(el));
+    el.addEventListener("wheel", e => {                 // scroll wheel adjusts the slider
+      e.preventDefault();
+      const span = (+el.max || 100) - (+el.min || 0);
+      const d = Math.max(1, Math.round(span / 64)) * (e.deltaY < 0 ? 1 : -1);
+      el.value = Math.max(+el.min, Math.min(+el.max, (+el.value) + d));
+      el.dispatchEvent(new Event("input"));
+    }, { passive: false });
   });
 
   // PTT — tap to toggle (works on touch + mouse). Latched TX auto-releases on
@@ -591,6 +598,8 @@
   $("vol").oninput = (e) => { if (audioGain) audioGain.gain.value = (+e.target.value) / 100; };
 
   // ---- boot ----
+  requestAnimationFrame(() => scope.resize());          // re-measure once the console layout settles
+  window.addEventListener("load", () => scope.resize());
   const saved = restoreConnFields();
   updateConnFields();
   connectWS();
