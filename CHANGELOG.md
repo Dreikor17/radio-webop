@@ -3,6 +3,23 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- **FT-991A: full CAT control.** Power, AF/RF/squelch, AGC, NB, DNR, manual notch,
+  preamp (IPO/AMP1), 12 dB attenuator, dial lock, split, RIT/clarifier, IF shift and
+  filter narrow/wide now work over Yaesu CAT, and the panel reads the radio's **real**
+  settings on connect (and keeps polling them). Previously only frequency and mode were
+  wired up — every other control was a silent no-op. Command formats verified against
+  the Yaesu CAT reference + Hamlib and confirmed on real hardware (RX-only, no TX).
+- **Update check** — the version badge links to a newer GitHub release when one exists.
+- **Built-in HTTPS** — `run.py --ssl-certfile/--ssl-keyfile` serves TLS directly on the
+  port (or `RADIO_WEBOP_SSL_CERT/_KEY`), so HTTPS works without a separate proxy.
+
+### Fixed
+- **Center-mode scope** no longer snaps when you change frequency — the whole view is
+  anchored to the tuned freq and the content slides under a fixed center marker.
+
 ## [0.2.02] — 2026-06-26
 
 Hotfix re-release of 0.2.2, which crashed at startup on a fresh install.

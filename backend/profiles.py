@@ -191,7 +191,8 @@ FT991A = RadioProfile(
     steps=[(10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"), (2500, "2.5 kHz"),
            (5000, "5 kHz"), (10000, "10 kHz"), (25000, "25 kHz")],
     default_step=100,
-    has_preamp=False, has_att=False, has_network=False,
+    # FT-991A has IPO/AMP1 (PA0) and a 12 dB RF ATT (RA0); P.AMP toggles IPO<->AMP1.
+    has_preamp=True, has_att=True, has_network=False,
     connect_help=[
         {"title": "USB CAT (COM only)", "items": [
             "Install the Yaesu USB driver first. The radio shows TWO COM ports — pick the Enhanced (CAT) port above, not Standard.",
