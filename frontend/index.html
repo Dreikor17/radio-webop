@@ -82,6 +82,10 @@
           <button class="key" id="audioBtn">🔊 RX</button>
           <button class="key ptt" id="micBtn">🎤 Mic</button>
         </div>
+        <div class="usb-audio" id="usbAudio" hidden>
+          <label class="sl sl-dev"><span>RX in</span><select id="rxDev" title="Radio's USB audio device to listen to"></select></label>
+          <label class="sl sl-dev"><span>Mic out</span><select id="micDev" title="Output device that feeds the radio (your mic is routed here)"></select></label>
+        </div>
         <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
         <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>
       </div>

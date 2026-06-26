@@ -40,6 +40,7 @@ class RadioProfile:
     make: str = "Icom"            # manufacturer, shown before the model in the picker
     protocol: str = "civ"         # "civ" (Icom CI-V) | "yaesu" (Yaesu CAT)
     has_scope: bool = True        # False = no spectrum/waterfall over the control link
+    has_network: bool = True      # False = COM-only (no RS-BA1/LAN) -> hide the LAN option
     default_baud: int = 115200    # default serial baud for the connection bar
     # connect_help: radio-side settings to set before connecting; rendered in the
     # "?" popover. [{"title": str, "items": [str, ...]}, ...]
@@ -55,6 +56,7 @@ class RadioProfile:
         return {
             "id": self.id, "name": self.name,
             "make": self.make, "protocol": self.protocol, "has_scope": self.has_scope,
+            "has_network": self.has_network,
             "default_baud": self.default_baud, "connect_help": self.connect_help,
             "modes": self.modes,
             "bands": [{"name": b.name, "lo": b.lo, "hi": b.hi, "def": b.default} for b in self.bands],
@@ -147,6 +149,12 @@ IC7300MK2 = RadioProfile(
             "CI-V Transceive = ON",
             "CI-V USB Echo Back = OFF",
         ]},
+        {"title": "Network (LAN / RS-BA1)", "items": [
+            "Connect [LAN] to your network. MENU > SET > Network > Network Control = ON.",
+            "Set a Network User1 ID + Password (8-16 chars, not all the same); note the radio's IP.",
+            "Control port (UDP) = 50001 (default). Restart the radio after network changes.",
+            "Enter the IP, port 50001 and the user/password above.",
+        ]},
     ],
 )
 
@@ -183,7 +191,7 @@ FT991A = RadioProfile(
     steps=[(10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"), (2500, "2.5 kHz"),
            (5000, "5 kHz"), (10000, "10 kHz"), (25000, "25 kHz")],
     default_step=100,
-    has_preamp=False, has_att=False,
+    has_preamp=False, has_att=False, has_network=False,
     connect_help=[
         {"title": "USB CAT (COM only)", "items": [
             "Install the Yaesu USB driver first. The radio shows TWO COM ports — pick the Enhanced (CAT) port above, not Standard.",

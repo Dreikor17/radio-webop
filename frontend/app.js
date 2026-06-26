@@ -113,7 +113,7 @@
     const on = !!s.connected;
     $("led").classList.toggle("on", on);
     $("connlabel").textContent = on ? (s.transport || "Connected") : "Disconnected";
-    $("audioAvail").textContent = s.audio ? "• available" : "• LAN only";
+    $("audioAvail").textContent = s.audio ? "• available" : (currentTransportKind() === "serial" ? "• USB device" : "• LAN only");
     $("modelLabel").textContent = on ? (s.radio_name || "") : (currentRadio ? currentRadio.name : "");
 
     // PTT / TX tag (button label + countdown handled by tickPtt)
@@ -568,6 +568,13 @@
     const ns = $("noScope"); if (ns) ns.hidden = !noScope;
     const soc = $("scopeOnlyCtl"); if (soc) soc.hidden = noScope;
     if (p.default_baud) $("baud").value = p.default_baud;
+    // COM-only radios (FT-991A, IC-7300 family): no RS-BA1 LAN — hide that option
+    const lanOpt = $("transport").querySelector('option[value="lan"]');
+    if (lanOpt) lanOpt.hidden = p.has_network === false;
+    if (p.has_network === false && $("transport").value === "lan") {
+      $("transport").value = "sim";
+    }
+    updateConnFields();
     applyTitles();
   }
   $("radioSel").addEventListener("change", () => {
@@ -641,6 +648,10 @@
     const isSerial = opt && opt.dataset.kind === "serial";
     $("baud").hidden = !isSerial;
     $("lanFields").hidden = sel.value !== "lan";
+    const ua = $("usbAudio"); if (ua) ua.hidden = !isSerial;   // USB device pickers for COM radios
+    if (isSerial) loadAudioDevices();
+    const note = $("audioAvail");
+    if (note) note.textContent = isSerial ? "• USB device" : (sel.value === "lan" ? "• network" : "");
   }
   $("transport").addEventListener("change", updateConnFields);
 
@@ -701,14 +712,17 @@
   // ---- RX audio (Web Audio playback of 16-bit LE mono PCM) ----
   let audioCtx = null, audioGain = null, playTime = 0, audioOn = false;
   let rsFifo = [], rsPos = 0;                       // continuous-resampler state (input samples + fractional read pos)
-  function startAudio() {
+  function ensureAudioCtx() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       audioGain = audioCtx.createGain();
       audioGain.gain.value = (+$("vol").value || 80) / 100;
       audioGain.connect(audioCtx.destination);
     }
-    audioCtx.resume(); playTime = 0; rsFifo = []; rsPos = 0; audioOn = true;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function startAudio() {                 // LAN / WS RX (jitter-buffered PCM)
+    ensureAudioCtx(); playTime = 0; rsFifo = []; rsPos = 0; audioOn = true;
   }
   function playAudio(buf) {
     if (!audioOn || !audioCtx) return;
@@ -737,6 +751,111 @@
     else if (playTime > now + 0.5) playTime = now + 0.2;     // bound runaway latency without a hard gap
     src.start(playTime); playTime += ab.duration;
   }
+
+  // ---- USB audio (serial/COM radios) ----------------------------------------
+  // Over a COM/CAT connection the control link carries no audio — the radio's
+  // audio is a separate USB sound device. So pick the radio's USB-CODEC input to
+  // hear RX, and an output device to feed your mic to for TX. Needs a secure
+  // context (HTTPS or localhost), like any getUserMedia.
+  function currentTransportKind() {
+    const sel = $("transport"), opt = sel.options[sel.selectedIndex];
+    if (!opt) return "sim";
+    return opt.dataset.kind === "serial" ? "serial" : opt.value;
+  }
+  function audioSecure() {
+    if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) return true;
+    alert("USB audio needs a secure context (HTTPS or localhost). You're on " + location.protocol + "//" + location.host +
+      " — open the app on the PC the radio is plugged into (http://localhost:8700), or serve it over HTTPS.");
+    return false;
+  }
+  function fillDevs(sel, list, kind) {
+    if (!sel) return;
+    const prev = sel.value; sel.innerHTML = "";
+    if (!list.length) {
+      const o = document.createElement("option"); o.value = ""; o.textContent = "(no " + kind.toLowerCase() + " devices)";
+      sel.appendChild(o); return;
+    }
+    list.forEach((d, i) => {
+      const o = document.createElement("option");
+      o.value = d.deviceId;
+      o.textContent = d.label || (kind + " " + (i + 1));
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+  }
+  async function loadAudioDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    let devs = [];
+    try { devs = await navigator.mediaDevices.enumerateDevices(); } catch (_) { return; }
+    fillDevs($("rxDev"), devs.filter((d) => d.kind === "audioinput"), "Input");
+    fillDevs($("micDev"), devs.filter((d) => d.kind === "audiooutput"), "Output");
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", loadAudioDevices);
+  }
+
+  // serial RX: capture the radio's USB-audio input -> VOL gain -> speakers
+  let rxStream = null, rxSrcNode = null;
+  async function startSerialRx() {
+    if (!audioSecure()) return false;
+    try {
+      const id = $("rxDev").value;
+      rxStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    } catch (e) { alert("Couldn't open that RX audio device: " + e); return false; }
+    ensureAudioCtx();
+    rxSrcNode = audioCtx.createMediaStreamSource(rxStream);
+    rxSrcNode.connect(audioGain);
+    loadAudioDevices();                  // labels are populated now permission is granted
+    return true;
+  }
+  function stopSerialRx() {
+    if (rxSrcNode) { try { rxSrcNode.disconnect(); } catch (_) {} rxSrcNode = null; }
+    if (rxStream) { rxStream.getTracks().forEach((t) => t.stop()); rxStream = null; }
+  }
+
+  // serial mic: capture the mic and play it to the chosen OUTPUT device (the
+  // radio's USB CODEC). Safe: this never keys TX — the radio transmits only when
+  // you press its PTT with its MOD source set to USB.
+  let micStreamSerial = null, micElSerial = null, micMeterSrc = null, micMeterRAF = 0;
+  async function startSerialMic() {
+    if (!audioSecure()) return false;
+    try {
+      micStreamSerial = await navigator.mediaDevices.getUserMedia(
+        { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    } catch (e) { alert("Microphone access denied: " + e); return false; }
+    micElSerial = new Audio();
+    micElSerial.srcObject = micStreamSerial;
+    const outId = $("micDev").value;
+    if (outId && micElSerial.setSinkId) { try { await micElSerial.setSinkId(outId); } catch (_) {} }
+    try { await micElSerial.play(); } catch (_) {}
+    ensureAudioCtx();                    // tap the same stream for the level meter
+    micMeterSrc = audioCtx.createMediaStreamSource(micStreamSerial);
+    const an = audioCtx.createAnalyser(); an.fftSize = 512; micMeterSrc.connect(an);
+    const data = new Uint8Array(an.fftSize), ml = $("micLevel");
+    const loop = () => {
+      an.getByteTimeDomainData(data);
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > peak) peak = v; }
+      if (ml) ml.style.width = Math.min(100, Math.round(Math.sqrt(peak) * 100)) + "%";
+      micMeterRAF = requestAnimationFrame(loop);
+    };
+    loop();
+    loadAudioDevices();
+    return true;
+  }
+  function stopSerialMic() {
+    if (micMeterRAF) { cancelAnimationFrame(micMeterRAF); micMeterRAF = 0; }
+    if (micMeterSrc) { try { micMeterSrc.disconnect(); } catch (_) {} micMeterSrc = null; }
+    if (micElSerial) { try { micElSerial.pause(); micElSerial.srcObject = null; } catch (_) {} micElSerial = null; }
+    if (micStreamSerial) { micStreamSerial.getTracks().forEach((t) => t.stop()); micStreamSerial = null; }
+    const ml = $("micLevel"); if (ml) ml.style.width = "0%";
+  }
+  // re-route live if the device picker changes while running
+  if ($("rxDev")) $("rxDev").addEventListener("change", () => { if (rxSrcNode) { stopSerialRx(); startSerialRx(); } });
+  if ($("micDev")) $("micDev").addEventListener("change", async () => {
+    if (micElSerial && micElSerial.setSinkId) { try { await micElSerial.setSinkId($("micDev").value); } catch (_) {} }
+  });
 
   // ---- TX mic (capture -> 16 kHz mono s16le -> server -> radio) ----
   // NOTE: this only streams audio to the radio's modulator; the radio transmits
@@ -785,13 +904,23 @@
     const ml = $("micLevel"); if (ml) ml.style.width = "0%";
   }
 
-  $("audioBtn").onclick = () => {
-    if (audioOn) { audioOn = false; $("audioBtn").classList.remove("active"); }
-    else { startAudio(); $("audioBtn").classList.add("active"); }
+  $("audioBtn").onclick = async () => {
+    if ($("audioBtn").classList.contains("active")) {   // turn RX off (whichever path)
+      audioOn = false; stopSerialRx();
+      $("audioBtn").classList.remove("active");
+    } else {
+      const ok = currentTransportKind() === "serial" ? await startSerialRx() : (startAudio(), true);
+      if (ok) $("audioBtn").classList.add("active");
+    }
   };
   $("micBtn").onclick = async () => {
-    if (micOn) { stopMic(); $("micBtn").classList.remove("on"); }
-    else if (await startMic()) $("micBtn").classList.add("on");
+    if ($("micBtn").classList.contains("on")) {         // turn mic off (whichever path)
+      stopMic(); stopSerialMic();
+      $("micBtn").classList.remove("on");
+    } else {
+      const ok = currentTransportKind() === "serial" ? await startSerialMic() : await startMic();
+      if (ok) $("micBtn").classList.add("on");
+    }
   };
   $("vol").oninput = (e) => { if (audioGain) audioGain.gain.value = (+e.target.value) / 100; };
 

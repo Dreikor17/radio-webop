@@ -223,6 +223,10 @@ select,input,.baud{
 /* sliders */
 .sliders{display:flex;flex-direction:column;gap:7px}
 .sl{display:grid;grid-template-columns:34px 1fr 40px;align-items:center;gap:8px;font-size:12px;color:var(--txt-dim)}
+.usb-audio{display:flex;flex-direction:column;gap:4px;margin:4px 0 6px}
+.usb-audio[hidden]{display:none}
+.sl-dev{grid-template-columns:46px 1fr;gap:6px}
+.sl-dev select{width:100%;min-width:0;font-size:11px;padding:3px 5px}
 .sl input[type=range]{width:100%;accent-color:var(--accent);margin:0}
 /* full edge-to-edge travel (no inset on the track ends) */
 .sl input[type=range]::-webkit-slider-thumb{margin:0}
