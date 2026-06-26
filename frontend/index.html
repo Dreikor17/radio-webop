@@ -9,7 +9,9 @@
 <body>
 
 <header class="topbar">
-  <div class="brand"><span class="mk">RADIO</span> WebOp<span class="model" id="modelLabel"></span><span class="ver">v0.2.1</span></div>
+  <div class="brand"><span class="mk">RADIO</span> WebOp<span class="model" id="modelLabel"></span><span class="ver">v0.2.1</span>
+    <button id="themeBtn" class="theme-btn" title="Day / night theme">🌙</button>
+  </div>
   <div class="conn open" id="conn">
     <span id="led" class="led"></span>
     <span id="connlabel" class="connlabel">Disconnected</span>
@@ -35,6 +37,7 @@
 <main class="radio">
   <!-- ===================== RIGHT: VFO readout + meter + waterfall ===================== -->
   <section class="scopepane">
+    <div class="toprow">
     <div class="bands tft" id="bands">
       <div class="bandrow active" data-act="select_band" data-band="main" id="rowMain" title="Operate the MAIN band">
         <div class="b-modebox">
@@ -67,6 +70,19 @@
       </div>
     </div>
 
+      <button class="key ptt ptt-big" id="pttBtn" data-act="ptt">PTT</button>
+
+      <div class="grp audio-grp">
+        <div class="grp-title">AUDIO <span class="lan-only" id="audioAvail"></span></div>
+        <div class="row">
+          <button class="key" id="audioBtn">🔊 RX</button>
+          <button class="key ptt" id="micBtn">🎤 Mic</button>
+        </div>
+        <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
+        <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>
+      </div>
+    </div><!-- /toprow -->
+
     <div class="meter">
       <div class="meter-scale">
         <span>S1</span><span>3</span><span>5</span><span>7</span><span>9</span>
@@ -87,6 +103,7 @@
 
     <div class="scope" id="scopeWrap">
       <canvas id="spectrum"></canvas>
+      <div class="scope-split" id="scopeSplit" title="Drag to resize spectrum / waterfall"></div>
       <canvas id="waterfall"></canvas>
       <canvas id="overlay" class="overlay-canvas"></canvas>
       <div class="scope-labels">
@@ -110,8 +127,6 @@
 
   <!-- ===================== LEFT: single-column controls (most-used on top) ===================== -->
   <section class="controls">
-    <button class="key ptt ptt-top" id="pttBtn" data-act="ptt">PTT</button>
-
     <div class="grp">
       <div class="grp-title">BAND</div>
       <div class="row wrap band-grid" id="bandRow"></div>
@@ -137,16 +152,6 @@
       <label class="sl"><span>RF</span><input type="range" min="0" max="255" step="1" id="rf" data-target="rf"><b class="sl-val" id="rfVal">0</b></label>
       <label class="sl"><span>SQL</span><input type="range" min="0" max="255" step="1" id="sql" data-target="sql"><b class="sl-val" id="sqlVal">0</b></label>
       <label class="sl"><span>PWR</span><input type="range" min="0" max="255" step="1" id="rfpwr" data-target="rfpwr"><b class="sl-val" id="rfpwrVal">0%</b></label>
-    </div>
-
-    <div class="grp audio-grp">
-      <div class="grp-title">AUDIO <span class="lan-only" id="audioAvail"></span></div>
-      <div class="row">
-        <button class="key" id="audioBtn">🔊 RX</button>
-        <button class="key ptt" id="micBtn">🎤 Mic</button>
-      </div>
-      <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
-      <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>
     </div>
 
     <div class="grp">

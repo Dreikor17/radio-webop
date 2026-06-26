@@ -1,40 +1,63 @@
 /* ===== Radio WebOp — Icom theme ====================================== */
 :root{
-  --bg:#0c0e11;
-  --panel:#1a1d22;
-  --panel-2:#23272e;
-  --bezel:#0f1115;
-  --key:#2a2f37;
-  --key-hi:#363c46;
-  --key-edge:#454c58;
-  --txt:#c7ced8;
-  --txt-dim:#7e8794;
-  --tft:#04121f;
+  /* ===== Slate theme — night (default) ===== */
+  --bg:#0b1220;
+  --surface:#1e293b;       /* panels: topbar, bezel, groups */
+  --surface-2:#172132;     /* recessed/raised */
+  --field:#0f172a;         /* inputs */
+  --border:#334155;
+  --panel:#1e293b;
+  --panel-2:#172132;
+  --bezel:#0b1220;
+  --key:#334155;
+  --key-hi:#3f4f66;
+  --key-edge:#4a5a72;
+  --txt:#e2e8f0;
+  --txt-dim:#93a1b5;
+  --tft:#04121f;           /* scope + readout stay dark in both modes */
   --tft-grid:#0f3148;
-  --accent:#19a7e0;     /* icom blue */
-  --accent-2:#23d3a7;
+  --accent:#38bdf8;        /* slate-blue */
+  --accent-2:#2dd4bf;
   --amber:#ffb648;
-  --tune:#ff9a2e;       /* tuned channel marker */
+  --tune:#ff9a2e;          /* tuned channel marker */
   --filter:rgba(80,200,255,.16);
-  --red:#ff4d4d;
-  --green:#37e08a;
+  --red:#f87171;
+  --green:#34d399;
+  --scrollthumb:#3f4f66;
   --font: "Segoe UI", Roboto, system-ui, sans-serif;
   --mono: "Consolas", "DejaVu Sans Mono", monospace;
+}
+body.day{
+  /* ===== Slate theme — day ===== */
+  --bg:#ccd4e0;
+  --surface:#eef2f7;
+  --surface-2:#e3e9f1;
+  --field:#f8fafc;
+  --border:#c2ccd9;
+  --panel:#eef2f7;
+  --panel-2:#e3e9f1;
+  --key:#dee4ee;
+  --key-hi:#edf1f7;
+  --key-edge:#b7c1ce;
+  --txt:#1e293b;
+  --txt-dim:#586577;
+  --scrollthumb:#b7c1ce;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{
-  background:radial-gradient(1200px 700px at 50% -10%, #15191f 0%, var(--bg) 60%);
+  background:var(--bg);
   color:var(--txt);font-family:var(--font);font-size:14px;
   -webkit-font-smoothing:antialiased;padding:14px;
+  transition:background .2s,color .2s;
 }
 
 /* ---- top bar ---- */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
   max-width:1180px;margin:0 auto 12px;padding:8px 14px;
-  background:linear-gradient(180deg,#20242b,#171a1f);
-  border:1px solid #2c313a;border-radius:10px;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;
 }
 .brand{font-weight:700;letter-spacing:.5px;font-size:18px;display:flex;align-items:center;gap:8px}
 .brand .mk{color:#fff;background:var(--accent);padding:2px 7px;border-radius:4px;font-size:14px;letter-spacing:1px}
@@ -47,7 +70,7 @@ body{
 .led{width:11px;height:11px;border-radius:50%;background:#5a2020;box-shadow:0 0 6px #000 inset}
 .led.on{background:var(--green);box-shadow:0 0 8px var(--green)}
 select,input,.baud{
-  background:#11141a;color:var(--txt);border:1px solid #333a45;border-radius:6px;
+  background:var(--field);color:var(--txt);border:1px solid var(--border);border-radius:6px;
   padding:5px 8px;font-family:var(--font);font-size:13px;
 }
 .baud{width:80px}
@@ -63,9 +86,9 @@ select,input,.baud{
 /* ---- radio bezel ---- */
 .radio{
   max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px;
-  background:linear-gradient(180deg,#23272e,#16191e);
-  border:1px solid #313742;border-radius:16px;padding:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.5), 0 1px 0 #3a414d inset;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:16px;padding:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);
 }
 
 /* ---- display / TFT ---- */
@@ -122,7 +145,7 @@ select,input,.baud{
 /* controls pack into space-saving columns BELOW the waterfall */
 .controls{columns:230px;column-gap:12px}
 .controls .grp{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 12px}
-.grp{background:linear-gradient(180deg,#1d2127,#171a1f);border:1px solid #2b313b;border-radius:9px;padding:9px 10px}
+.grp{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 10px}
 .grp-title{font-size:10px;letter-spacing:1.5px;color:var(--txt-dim);margin-bottom:7px}
 .row{display:flex;gap:6px}
 .row.wrap{flex-wrap:wrap}
@@ -132,7 +155,7 @@ select,input,.baud{
   border-radius:7px;padding:9px 6px;cursor:pointer;font-size:13px;font-weight:600;
   box-shadow:0 2px 0 #0d1014, 0 1px 2px rgba(0,0,0,.4);
 }
-.key:hover{background:linear-gradient(180deg,#3e4550,#2e343d)}
+.key:hover{filter:brightness(1.12)}
 .key:active{transform:translateY(1px);box-shadow:0 1px 0 #0d1014}
 .key.active{background:linear-gradient(180deg,#1ec0ff,#1488c0);color:#04121f;border-color:#1ec0ff;
   box-shadow:0 0 10px rgba(30,180,255,.5),0 2px 0 #0d1014}
@@ -364,3 +387,34 @@ select,input,.baud{
   #waterfall{flex:1 1 auto;min-height:0;height:auto;width:100%}
   .scope-ctl{flex:0 0 auto;margin-top:0}
 }
+
+/* ===== top header row: VFO readout (half, left) | large PTT | audio ===== */
+.toprow{display:flex;gap:10px;align-items:stretch}
+.toprow .bands{flex:1.5 1 0;min-width:0;margin:0}
+.ptt-big{flex:0 0 132px;font-size:16px;font-weight:800;letter-spacing:1px;border-radius:10px}
+.toprow .audio-grp{flex:1 1 0;min-width:0;margin:0}
+@media (max-width:899px){
+  .toprow{flex-wrap:wrap}
+  .toprow .bands{flex:1 1 100%}
+  .ptt-big{flex:1 1 40%}
+  .toprow .audio-grp{flex:1 1 55%}
+}
+
+/* draggable split between spectrum and waterfall */
+.scope-split{flex:0 0 8px;cursor:ns-resize;background:rgba(80,160,210,.10);position:relative;z-index:3}
+.scope-split:hover,.scope-split.drag{background:rgba(90,200,255,.38)}
+.scope-split::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:36px;height:2px;border-radius:2px;background:rgba(150,210,255,.55)}
+
+/* subtle, themed scrollbar for the control strip */
+.controls{scrollbar-width:thin;scrollbar-color:var(--scrollthumb) transparent}
+.controls::-webkit-scrollbar{width:8px}
+.controls::-webkit-scrollbar-track{background:transparent}
+.controls::-webkit-scrollbar-thumb{background:var(--scrollthumb);border-radius:5px;
+  border:2px solid transparent;background-clip:content-box}
+.controls::-webkit-scrollbar-thumb:hover{background:var(--accent);background-clip:content-box}
+
+/* day / night toggle */
+.theme-btn{background:transparent;border:1px solid var(--border);color:var(--txt-dim);
+  border-radius:6px;padding:1px 7px;margin-left:8px;cursor:pointer;font-size:13px;line-height:1.5}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}

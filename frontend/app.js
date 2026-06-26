@@ -408,6 +408,45 @@
     }, { passive: false });
   }
 
+  // ---- draggable spectrum / waterfall split ----
+  (function () {
+    const split = $("scopeSplit"), spec = $("spectrum"), wrap = $("scopeWrap");
+    if (!split || !spec || !wrap) return;
+    let down = false;
+    split.addEventListener("pointerdown", (e) => {
+      down = true; split.classList.add("drag");
+      try { split.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+    });
+    split.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      const r = wrap.getBoundingClientRect();
+      spec.style.height = Math.max(60, Math.min(r.height - 110, e.clientY - r.top)) + "px";
+      scope.resize();
+    });
+    const end = (e) => {
+      if (!down) return; down = false; split.classList.remove("drag");
+      try { split.releasePointerCapture(e.pointerId); } catch (_) {}
+      scope.resize();
+    };
+    split.addEventListener("pointerup", end);
+    split.addEventListener("pointercancel", end);
+  })();
+
+  // ---- day / night theme ----
+  const themeBtn = $("themeBtn");
+  function applyTheme(day) {
+    document.body.classList.toggle("day", day);
+    if (themeBtn) themeBtn.textContent = day ? "☀️" : "🌙";
+    try { localStorage.setItem("radiowebop.theme", day ? "day" : "night"); } catch (_) {}
+  }
+  if (themeBtn) themeBtn.addEventListener("click", () => applyTheme(!document.body.classList.contains("day")));
+  (function () {
+    let t = "night";
+    try { t = localStorage.getItem("radiowebop.theme") || "night"; } catch (_) {}
+    applyTheme(t === "day");
+  })();
+
   // ---- radio profiles (bands/modes/steps render from the selected radio) ----
   function selectedRadio() { return radios.find(p => p.id === $("radioSel").value) || radios[0] || null; }
   async function loadRadios() {
