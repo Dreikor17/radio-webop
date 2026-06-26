@@ -572,6 +572,7 @@
   }
   $("radioSel").addEventListener("change", () => {
     renderRadio(selectedRadio());
+    renderRadioHelp();
     saveConn();
     blanked = true;                                 // new radio: blank the readout + waterfall until reconnect
     scope.clear();
@@ -583,6 +584,39 @@
       $("conn").classList.add("open");              // reopen the connect controls so they can reconnect
     }
   });
+
+  // ---- connection help popover ("?" beside the radio picker) ----
+  function rhEsc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function renderRadioHelp() {
+    const help = $("radioHelp"), p = selectedRadio();
+    if (!help || !p) return;
+    const secs = p.connect_help || [];
+    let html = '<div class="rh-title">' + rhEsc((p.make ? p.make + " " : "") + p.name) +
+      ' <small>— set these on the radio</small></div>';
+    if (!secs.length) {
+      html += '<div class="rh-sec">No special radio settings needed — just connect.</div>';
+    } else {
+      for (const s of secs) {
+        html += '<div class="rh-sec"><div class="rh-h">' + rhEsc(s.title) + '</div><ul>' +
+          (s.items || []).map((it) => "<li>" + rhEsc(it) + "</li>").join("") + "</ul></div>";
+      }
+    }
+    help.innerHTML = html;
+  }
+  function toggleRadioHelp(force) {
+    const help = $("radioHelp"), btn = $("radioHelpBtn");
+    if (!help || !btn) return;
+    const show = force === undefined ? help.hidden : force;
+    if (show) renderRadioHelp();
+    help.hidden = !show;
+    btn.classList.toggle("on", show);
+  }
+  $("radioHelpBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleRadioHelp(); });
+  document.addEventListener("click", (e) => {
+    const help = $("radioHelp");
+    if (help && !help.hidden && !e.target.closest(".radio-pick")) toggleRadioHelp(false);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleRadioHelp(false); });
 
   // ---- connection controls ----
   async function loadPorts() {

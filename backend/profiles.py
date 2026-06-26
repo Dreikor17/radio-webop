@@ -41,6 +41,9 @@ class RadioProfile:
     protocol: str = "civ"         # "civ" (Icom CI-V) | "yaesu" (Yaesu CAT)
     has_scope: bool = True        # False = no spectrum/waterfall over the control link
     default_baud: int = 115200    # default serial baud for the connection bar
+    # connect_help: radio-side settings to set before connecting; rendered in the
+    # "?" popover. [{"title": str, "items": [str, ...]}, ...]
+    connect_help: list = field(default_factory=list)
 
     def band_default(self, name: str) -> Optional[int]:
         for b in self.bands:
@@ -52,7 +55,7 @@ class RadioProfile:
         return {
             "id": self.id, "name": self.name,
             "make": self.make, "protocol": self.protocol, "has_scope": self.has_scope,
-            "default_baud": self.default_baud,
+            "default_baud": self.default_baud, "connect_help": self.connect_help,
             "modes": self.modes,
             "bands": [{"name": b.name, "lo": b.lo, "hi": b.hi, "def": b.default} for b in self.bands],
             "steps": [{"v": v, "label": lbl} for v, lbl in self.steps],
@@ -89,6 +92,22 @@ IC9700 = RadioProfile(
            (10000, "10 kHz"), (12500, "12.5 kHz"), (25000, "25 kHz")],
     default_step=25000,
     dual_watch=True,                # MAIN + SUB receivers
+    connect_help=[
+        {"title": "USB (CI-V)", "items": [
+            "Install Icom's USB driver, then connect [USB] to the PC and pick its COM port above.",
+            "MENU > SET > Connectors > CI-V:",
+            "CI-V USB Baud Rate = Auto (default) — or 115200 to match the Baud box",
+            "CI-V Address = A2h (default)",
+            "CI-V Transceive = ON",
+            "CI-V USB Echo Back = OFF",
+        ]},
+        {"title": "Network (LAN / RS-BA1)", "items": [
+            "Connect [LAN] to your network. MENU > SET > Network > Network Control = ON.",
+            "Set a Network User1 ID + Password (8-16 chars, not all the same); note the radio's IP.",
+            "Control port (UDP) = 50001 (default). Restart the radio after network changes.",
+            "Enter the IP, port 50001 and the user/password above.",
+        ]},
+    ],
 )
 
 IC7300MK2 = RadioProfile(
@@ -118,6 +137,17 @@ IC7300MK2 = RadioProfile(
     steps=[(1, "1 Hz"), (10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"),
            (5000, "5 kHz"), (9000, "9 kHz"), (10000, "10 kHz")],
     default_step=100,
+    connect_help=[
+        {"title": "USB (CI-V)", "items": [
+            "Install Icom's USB driver, then connect [USB] to the PC and pick its COM port above.",
+            "MENU > SET > Connectors > CI-V:",
+            "Set CI-V USB Port to 'Unlink from [REMOTE]' first — while linked, USB baud is capped at 19200.",
+            "CI-V USB Baud Rate = 115200 (match the Baud box)",
+            "CI-V Address = B6h (default)",
+            "CI-V Transceive = ON",
+            "CI-V USB Echo Back = OFF",
+        ]},
+    ],
 )
 
 # Yaesu FT-991A — all-mode HF/50/144/430 MHz. Yaesu CAT (serial), COM-only: no
@@ -154,6 +184,14 @@ FT991A = RadioProfile(
            (5000, "5 kHz"), (10000, "10 kHz"), (25000, "25 kHz")],
     default_step=100,
     has_preamp=False, has_att=False,
+    connect_help=[
+        {"title": "USB CAT (COM only)", "items": [
+            "Install the Yaesu USB driver first. The radio shows TWO COM ports — pick the Enhanced (CAT) port above, not Standard.",
+            "MENU EX-031 (CAT RATE) = 38400 to match the Baud box (the factory default is lower — change it, or set the Baud box to your radio's rate).",
+            "Serial format is 8 data / no parity / 2 stop bits (8N2) — handled for you.",
+            "No network: the FT-991A is COM-only.",
+        ]},
+    ],
 )
 
 PROFILES = {p.id: p for p in (IC9700, IC7300MK2, FT991A)}

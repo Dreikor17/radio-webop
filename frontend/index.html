@@ -17,7 +17,11 @@
     <span id="connlabel" class="connlabel">Disconnected</span>
     <button id="connToggle" class="conn-toggle" title="Connection settings">⚙</button>
     <div class="conn-controls" id="connControls">
-      <select id="radioSel" title="Radio model"></select>
+      <span class="radio-pick">
+        <select id="radioSel" title="Radio model"></select>
+        <button id="radioHelpBtn" class="help-btn" type="button" title="Radio settings needed to connect" aria-label="Connection help">?</button>
+        <div id="radioHelp" class="radio-help" hidden></div>
+      </span>
       <select id="transport" title="Connection">
         <option value="sim">Simulator</option>
         <option value="lan">LAN (network)</option>
