@@ -207,7 +207,7 @@
       const ctx = this.octx, w = this.W, h = this.scopeH || (this.specH + this.wfH), m = this.meta;
       ctx.clearRect(0, 0, w, h);
       // filter passband band (offset by mode)
-      const bw = m.filterBw || 0, tuned = m.tuned || m.center || 0;
+      const bw = m.filterBw || 0, tuned = m.tuned || 0;   // explicit 0 (AF scope) -> no marker
       if (bw > 0 && tuned) {
         let loF, hiF;
         if (this.opMode === "USB" || this.opMode === "DV" || this.opMode === "RTTY-R") { loF = tuned; hiF = tuned + bw; }

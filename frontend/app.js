@@ -87,8 +87,9 @@
       fillBand("main", s.main, s.active_band !== "sub");
       fillBand("sub", s.sub, s.active_band === "sub");
     }
-    // no-scope radios (Yaesu CAT): no sweeps, so drive the band plan + freq labels from freq
-    if (!blanked && currentRadio && currentRadio.has_scope === false) {
+    // no-scope radios (Yaesu CAT): no sweeps. While RX audio runs we draw an AF
+    // spectrum (afTimer); otherwise drive the band plan + freq labels from the freq.
+    if (!blanked && currentRadio && currentRadio.has_scope === false && !afTimer) {
       scope.showStatic(s.freq, 200000);
       updateScopeLabels(scope.meta);
     }
@@ -581,6 +582,7 @@
     renderRadio(selectedRadio());
     renderRadioHelp();
     saveConn();
+    stopAllAudio();                                 // drop any audio/AF-scope from the old radio
     blanked = true;                                 // new radio: blank the readout + waterfall until reconnect
     scope.clear();
     renderFreq($("mainFreq"), 0, false);
@@ -702,7 +704,7 @@
     saveConn();
     doConnect(body);                       // collapses the settings on success (mobile)
   };
-  $("disconnectBtn").onclick = () => { $("conn").classList.add("open"); fetch("/api/disconnect", { method: "POST" }); };
+  $("disconnectBtn").onclick = () => { stopAllAudio(); $("conn").classList.add("open"); fetch("/api/disconnect", { method: "POST" }); };
   // Enter in any connection field starts the connect
   ["lanHost", "lanUser", "lanPass", "baud"].forEach((id) => {
     const el = $(id);
@@ -806,12 +808,18 @@
     ensureAudioCtx();
     rxSrcNode = audioCtx.createMediaStreamSource(rxStream);
     rxSrcNode.connect(audioGain);
+    if (afEligible()) startAfScope(rxSrcNode);   // FT-991A etc.: draw an audio spectrum from RX
     loadAudioDevices();                  // labels are populated now permission is granted
     return true;
   }
   function stopSerialRx() {
+    stopAfScope();
     if (rxSrcNode) { try { rxSrcNode.disconnect(); } catch (_) {} rxSrcNode = null; }
     if (rxStream) { rxStream.getTracks().forEach((t) => t.stop()); rxStream = null; }
+    if (afEligible() && !blanked) {              // back to the static band-plan view
+      scope.showStatic(state.freq, 200000);
+      updateScopeLabels(scope.meta);
+    }
   }
 
   // serial mic: capture the mic and play it to the chosen OUTPUT device (the
@@ -851,6 +859,59 @@
     if (micStreamSerial) { micStreamSerial.getTracks().forEach((t) => t.stop()); micStreamSerial = null; }
     const ml = $("micLevel"); if (ml) ml.style.width = "0%";
   }
+
+  // ---- audio (AF) spectrum from RX, for radios with no CAT band scope (FT-991A) ----
+  // FFT the RX audio and feed the existing spectrum + waterfall. Audio Hz is mapped
+  // to RF by the mode's sideband (USB: dial+af, LSB: dial-af) so the labels, tuned
+  // marker and band plan all read real frequencies — a mini panadapter of the passband.
+  let afTimer = 0, afAnalyser = null;
+  const AF_MAX = 4000;                          // Hz of the RX audio passband to show
+  function afEligible() { return !!(currentRadio && currentRadio.has_scope === false); }
+  function startAfScope(srcNode) {
+    stopAfScope();
+    ensureAudioCtx();
+    afAnalyser = audioCtx.createAnalyser();
+    afAnalyser.fftSize = 4096;
+    afAnalyser.smoothingTimeConstant = 0.5;
+    afAnalyser.minDecibels = -95;
+    afAnalyser.maxDecibels = -20;
+    try { srcNode.connect(afAnalyser); } catch (_) { afAnalyser = null; return; }
+    const bins = afAnalyser.frequencyBinCount, buf = new Uint8Array(bins);
+    const sr = audioCtx.sampleRate;
+    const n = Math.max(64, Math.min(bins, Math.round(AF_MAX / (sr / 2) * bins)));
+    const data = new Uint8Array(n);
+    const ns = $("noScope"); if (ns) ns.hidden = true;
+    const badge = $("afBadge"); if (badge) badge.hidden = false;
+    afTimer = setInterval(() => {
+      afAnalyser.getByteFrequencyData(buf);
+      const mode = state.mode_name || "USB";
+      const lsb = mode === "LSB" || mode === "CW-R" || mode === "RTTY" || mode === "DATA-L";
+      for (let i = 0; i < n; i++) {
+        const v = buf[lsb ? (n - 1 - i) : i];
+        data[i] = (v * 160 / 255) | 0;          // 0-255 FFT byte -> the scope's 0-160 range
+      }
+      const dial = state.freq || 0;
+      const lower = lsb ? dial - AF_MAX : dial;
+      const upper = lsb ? dial : dial + AF_MAX;
+      // tuned:0 -> no RF marker (the dial sits at an edge here); labels read lower/center/upper
+      scope.pushSweep({ mode: 0, center: (lower + upper) / 2, span: AF_MAX, lower, upper, tuned: 0, filterBw: 0 }, data);
+      updateScopeLabels(scope.meta);
+    }, 45);                                       // ~22 fps
+  }
+  function stopAfScope() {
+    if (afTimer) { clearInterval(afTimer); afTimer = 0; }
+    if (afAnalyser) { try { afAnalyser.disconnect(); } catch (_) {} afAnalyser = null; }
+    const badge = $("afBadge"); if (badge) badge.hidden = true;
+    if (afEligible()) { const ns = $("noScope"); if (ns) ns.hidden = false; }
+  }
+  // stop every audio path + reset the buttons (on radio change / disconnect)
+  function stopAllAudio() {
+    audioOn = false;
+    stopSerialRx(); stopSerialMic(); stopMic(); stopAfScope();
+    $("audioBtn").classList.remove("active");
+    $("micBtn").classList.remove("on");
+  }
+
   // re-route live if the device picker changes while running
   if ($("rxDev")) $("rxDev").addEventListener("change", () => { if (rxSrcNode) { stopSerialRx(); startSerialRx(); } });
   if ($("micDev")) $("micDev").addEventListener("change", async () => {
