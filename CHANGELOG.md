@@ -150,13 +150,13 @@ live spectrum scope + waterfall.
 - **Remembers** the chosen connection (and LAN IP / user / password) in the
   browser.
 - **Mobile-friendly** responsive layout with touch-sized controls.
-- Binds to `0.0.0.0` by default (reachable over LAN / Tailscale).
+- Binds to `0.0.0.0` by default (reachable across your network).
 
 ### Notes
 - The LAN protocol is a clean-room implementation informed by the open-source
   wfview and kappanhang projects; there is no official Icom wire-format spec.
 - No authentication yet — anyone who can reach the port can control the radio
-  (including TX). Restrict the bind interface and/or use Tailscale ACLs.
+  (including TX). Restrict the bind interface and/or use a firewall / VPN.
 - Mic capture (TX) needs a secure context (HTTPS or localhost), so it won't run
   over plain-HTTP remote access; RX audio playback works over HTTP.
 

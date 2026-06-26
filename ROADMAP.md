@@ -74,7 +74,7 @@ just adding a profile.
 ### Platform
 - **More radios** — IC-705, IC-7610, IC-905, IC-7300, etc. (each is just a profile).
 - **Authentication + built-in HTTPS** for safe remote use (today there is no login —
-  restrict by interface / Tailscale ACLs).
+  restrict by interface / firewall / VPN).
 - **Remote power-on** from networked standby where the radio supports it.
 - Audio: selectable **codec / sample-rate**, recording, lower-latency options.
 

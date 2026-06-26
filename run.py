@@ -17,7 +17,7 @@ import uvicorn
 def main() -> None:
     ap = argparse.ArgumentParser(description="Radio WebOp server")
     ap.add_argument("--host", default="0.0.0.0",
-                    help="bind address (default 0.0.0.0 = all interfaces, incl. LAN/Tailscale)")
+                    help="bind address (default 0.0.0.0 = all interfaces: LAN, VPN, etc.)")
     ap.add_argument("--port", type=int, default=8700)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--reload", action="store_true")
@@ -31,7 +31,7 @@ def main() -> None:
             pass
     print(f"Radio WebOp -> {local}")
     if args.host in ("0.0.0.0", "::"):
-        print(f"  Also reachable on all interfaces (LAN / Tailscale) at port {args.port}.")
+        print(f"  Also reachable on all interfaces (LAN / VPN / port-forward) at port {args.port}.")
         print("  WARNING: no login — anyone who can reach this port can control the radio (incl. TX).")
     uvicorn.run("backend.server:app", host=args.host, port=args.port,
                 reload=args.reload, log_level="info")

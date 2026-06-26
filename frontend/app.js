@@ -980,7 +980,7 @@
     if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       alert("Microphone (TX) needs a secure HTTPS connection. You're on " + location.protocol +
         " — browsers only allow the mic over HTTPS (or localhost), not plain HTTP. " +
-        "Serve the app over HTTPS (e.g. `tailscale serve`) and open the https:// address. " +
+        "Serve the app over HTTPS (e.g. behind a reverse proxy / TLS tunnel) and open the https:// address. " +
         "RX audio still works over HTTP.");
       return false;
     }

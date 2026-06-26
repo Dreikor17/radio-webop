@@ -50,8 +50,10 @@ Then open <http://localhost:8700>. Pick your **radio model**, choose a transport
 - **LAN:** on the radio set Network Function ON + a network user/password, leave
   it on (or in networked standby), then choose LAN, enter the IP / user /
   password, Connect.
-- **Remote/mobile:** the mic needs a secure context, so serve over HTTPS for TX
-  (e.g. `tailscale serve`). RX works over plain HTTP. Binds `0.0.0.0` by default.
+- **Remote/mobile:** binds `0.0.0.0` by default, so it's reachable over your LAN, a
+  VPN, or a port-forward. The mic (TX) and USB audio need a secure context, so serve
+  over HTTPS for those (e.g. behind a reverse proxy / TLS tunnel); RX works over plain
+  HTTP. The WebSocket follows the page scheme (`ws://` over HTTP, `wss://` over HTTPS).
 
 ## Architecture
 
@@ -75,5 +77,5 @@ Independent project, not affiliated with Icom. The LAN protocol is a clean-room
 implementation informed by the open-source
 [wfview](https://gitlab.com/eliggett/wfview) and
 [kappanhang](https://github.com/nonoo/kappanhang). There is **no authentication**
-yet — restrict access by interface and/or Tailscale ACLs. Icom's CI-V reference
+yet — restrict access by interface and/or a firewall / VPN. Icom's CI-V reference
 PDFs are not redistributed (see `docs/README.md`).
