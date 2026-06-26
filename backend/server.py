@@ -126,7 +126,7 @@ def _asset_version():
     try:
         return str(int(max(
             (FRONTEND / f).stat().st_mtime
-            for f in ("index.html", "app.js", "waterfall.js", "bandplan.js", "style.css")
+            for f in ("index.html", "app.js", "waterfall.js", "bandplan.js", "cwtool.js", "style.css")
         )))
     except OSError:
         return "0"
@@ -135,7 +135,7 @@ def _asset_version():
 async def index(request):
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
     v = _asset_version()
-    for asset in ("app.js", "waterfall.js", "bandplan.js", "style.css"):
+    for asset in ("app.js", "waterfall.js", "bandplan.js", "cwtool.js", "style.css"):
         html = html.replace(f"/static/{asset}", f"/static/{asset}?v={v}")
     return HTMLResponse(html)
 

@@ -712,7 +712,7 @@
   });
 
   // ---- RX audio (Web Audio playback of 16-bit LE mono PCM) ----
-  let audioCtx = null, audioGain = null, playTime = 0, audioOn = false;
+  let audioCtx = null, audioGain = null, rxBus = null, playTime = 0, audioOn = false;
   let rsFifo = [], rsPos = 0;                       // continuous-resampler state (input samples + fractional read pos)
   function ensureAudioCtx() {
     if (!audioCtx) {
@@ -720,12 +720,16 @@
       audioGain = audioCtx.createGain();
       audioGain.gain.value = (+$("vol").value || 80) / 100;
       audioGain.connect(audioCtx.destination);
+      rxBus = audioCtx.createGain();               // pre-volume RX bus: tools (CW, AF) tap here
+      rxBus.connect(audioGain);
     }
     if (audioCtx.state === "suspended") audioCtx.resume();
   }
   function startAudio() {                 // LAN / WS RX (jitter-buffered PCM)
     ensureAudioCtx(); playTime = 0; rsFifo = []; rsPos = 0; audioOn = true;
   }
+  // minimal audio API for overlay tools (e.g. the CW decoder/coder in cwtool.js)
+  window.RadioAudio = { ensure: ensureAudioCtx, ctx: () => audioCtx, bus: () => rxBus, state: () => state };
   function playAudio(buf) {
     if (!audioOn || !audioCtx) return;
     const rate = new DataView(buf).getUint16(2, true) || 16000;
@@ -747,7 +751,7 @@
     if (!out.length) return;
     const ab = audioCtx.createBuffer(1, out.length, ctxRate);
     ab.getChannelData(0).set(out);
-    const src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(audioGain);
+    const src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(rxBus);
     const now = audioCtx.currentTime;
     if (playTime < now + 0.06) playTime = now + 0.18;        // prime / rebuild the jitter buffer on underrun
     else if (playTime > now + 0.5) playTime = now + 0.2;     // bound runaway latency without a hard gap
@@ -807,7 +811,7 @@
     } catch (e) { alert("Couldn't open that RX audio device: " + e); return false; }
     ensureAudioCtx();
     rxSrcNode = audioCtx.createMediaStreamSource(rxStream);
-    rxSrcNode.connect(audioGain);
+    rxSrcNode.connect(rxBus);
     if (afEligible()) startAfScope(rxSrcNode);   // FT-991A etc.: draw an audio spectrum from RX
     loadAudioDevices();                  // labels are populated now permission is granted
     return true;

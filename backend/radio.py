@@ -394,8 +394,25 @@ class Radio:
                 self._write(self._b(0x04))
                 if self.state["dual_watch"]:             # is MAIN the operating band?
                     self._write(self._b(0x07, 0xD2, b"\x00"))
+            if tick % 40 == 0 and not self._suppress_poll:   # ~6s: re-sync the whole panel from the radio
+                self._read_panel()
             tick += 1
             time.sleep(0.15)
+
+    def _read_panel(self) -> None:
+        """Re-read the panel settings so the UI mirrors the radio even when knobs
+        are turned at the front panel (connect reads these once; this keeps them live)."""
+        self._write(self._b(0x11))                       # attenuator
+        for sub in (0x02, 0x50, 0x22, 0x40, 0x41, 0x48,  # preamp, lock, NB, NR, A/M-notch,
+                    0x12, 0x57, 0x44, 0x45, 0x46, 0x58):  # AGC, notch-W, COMP, MON, VOX, TBW
+            self._write(self._b(0x16, sub))
+        for sub in (0x06, 0x12, 0x07, 0x08, 0x0D,        # NR/NB level, twin PBT, M-notch pos,
+                    0x0B, 0x0E, 0x15, 0x16):              # MIC, COMP, MON, VOX level
+            self._write(self._b(0x14, sub))
+        self._write(self._b(0x21, 0x00))                 # RIT frequency
+        self._write(self._b(0x21, 0x01))                 # RIT on/off
+        self._write(self._b(0x0F))                       # split / duplex
+        self._write(self._b(0x0C))                       # duplex offset
 
     # -- button-level actions ------------------------------------------------
     def set_freq(self, hz: int) -> None:

@@ -170,6 +170,31 @@ select,input,.baud{
   padding:1px 6px;pointer-events:none}
 .af-badge[hidden]{display:none}
 
+/* overlay tool panels (CW decoder/coder, future tools) */
+.scopepane{position:relative}
+.tool-panel{position:absolute;z-index:40;left:12px;bottom:50px;width:300px;max-width:calc(100% - 24px);
+  background:rgba(11,18,32,.97);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 12px 34px rgba(0,0,0,.6);color:var(--txt);font-size:12px;overflow:hidden}
+.tool-panel[hidden]{display:none}
+.tp-head{display:flex;align-items:center;gap:8px;padding:6px 9px;background:var(--surface);
+  border-bottom:1px solid var(--border);cursor:move;user-select:none}
+.tp-title{font-weight:700;letter-spacing:1px;color:var(--accent)}
+.tp-meta{font-size:11px;color:var(--txt-dim)}
+.tp-meta b{color:var(--txt);font-family:var(--mono)}
+.tp-close{margin-left:auto;background:none;border:none;color:var(--txt-dim);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
+.tp-close:hover{color:var(--txt)}
+.tp-body{padding:8px 9px;display:flex;flex-direction:column;gap:6px}
+.cw-out{height:88px;overflow-y:auto;background:var(--field);border:1px solid var(--border);border-radius:6px;
+  padding:6px 8px;font-family:var(--mono);font-size:14px;letter-spacing:1px;color:var(--accent-2);
+  white-space:pre-wrap;word-break:break-word;line-height:1.4}
+.cw-out .cw-live{color:var(--amber)}
+.cw-row{display:flex;align-items:center;gap:6px}
+.cw-lbl{font-size:11px;color:var(--txt-dim);min-width:30px}
+.cw-row input[type=range]{flex:1 1 auto;min-width:0}
+.cw-send{flex:1 1 auto;min-width:0}
+.key.sm{flex:0 0 auto;min-width:0;padding:5px 9px;font-size:12px}
+.cw-hint{font-size:10px;color:var(--txt-dim)}
+
 /* ---- controls column ---- */
 /* top deck: display (scope/waterfall) on the left, MAIN DIAL + AUDIO at the top-right */
 .topdeck{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}

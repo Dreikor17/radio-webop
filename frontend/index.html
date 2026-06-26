@@ -134,9 +134,33 @@
         <span class="sep"></span>
       </span>
       <button class="sc-btn" id="bandPlanBtn" title="Overlay the ARRL band plan (VHF/UHF) or FCC license-class sub-bands (HF)">BAND PLAN</button>
+      <button class="sc-btn" id="cwToolBtn" title="CW decoder / coder — pops up over the waterfall">CW</button>
       <span class="bandlegend" id="bandLegend" hidden></span>
       <span class="sep"></span>
       <span class="hint" id="scopeHint">Click a freq digit to tune (scroll it too) · tap / drag the waterfall</span>
+    </div>
+
+    <!-- overlay tool: CW decoder / coder -->
+    <div class="tool-panel" id="cwTool" hidden>
+      <div class="tp-head" id="cwHead">
+        <span class="tp-title">CW</span>
+        <span class="tp-meta"><b id="cwWpm">--</b> wpm · <b id="cwTone">---</b> Hz</span>
+        <button class="tp-close" id="cwClose" title="Close">&#10005;</button>
+      </div>
+      <div class="tp-body">
+        <div class="cw-out" id="cwOut" aria-label="Decoded CW"></div>
+        <div class="cw-row">
+          <span class="cw-lbl">Tone</span>
+          <input type="range" id="cwToneSet" min="300" max="1000" step="10" value="600">
+          <button class="key sm" id="cwAuto" title="Auto-detect the strongest tone">Auto</button>
+          <button class="key sm" id="cwClear">Clear</button>
+        </div>
+        <div class="cw-row">
+          <input id="cwSend" class="cw-send" placeholder="type → Morse sidetone (no transmit)" maxlength="160">
+          <button class="key sm" id="cwPlay" title="Play as a CW sidetone — does NOT key the radio">&#9654;</button>
+        </div>
+        <div class="cw-hint" id="cwHint">turn on 🔊 RX to decode the receiver audio</div>
+      </div>
     </div>
   </section>
 
@@ -274,5 +298,6 @@
 <script src="/static/waterfall.js"></script>
 <script src="/static/bandplan.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/cwtool.js"></script>
 </body>
 </html>
