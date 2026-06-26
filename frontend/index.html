@@ -111,19 +111,23 @@
         <span id="lblCenter" class="lbl-center"></span>
         <span id="lblRight" class="lbl-right"></span>
       </div>
+      <div class="no-scope" id="noScope" hidden>No band scope over CAT — frequency &amp; mode control only</div>
     </div>
 
     <div class="scope-ctl">
-      <button data-act="scope_mode" data-center="1" class="sc-btn active" id="btnCenter">CENT</button>
-      <button data-act="scope_mode" data-center="0" class="sc-btn" id="btnFixed">FIX</button>
-      <span class="sep"></span>
-      <button class="sc-btn" id="spanDn">SPAN &minus;</button>
-      <span class="span-val" id="spanVal">±25k</span>
-      <button class="sc-btn" id="spanUp">SPAN +</button>
-      <span class="sep"></span>
+      <span id="scopeOnlyCtl">
+        <button data-act="scope_mode" data-center="1" class="sc-btn active" id="btnCenter">CENT</button>
+        <button data-act="scope_mode" data-center="0" class="sc-btn" id="btnFixed">FIX</button>
+        <span class="sep"></span>
+        <button class="sc-btn" id="spanDn">SPAN &minus;</button>
+        <span class="span-val" id="spanVal">±25k</span>
+        <button class="sc-btn" id="spanUp">SPAN +</button>
+        <span class="sep"></span>
+      </span>
       <button class="sc-btn" id="bandPlanBtn" title="Overlay the ARRL band plan (VHF/UHF) or FCC license-class sub-bands (HF)">BAND PLAN</button>
+      <span class="bandlegend" id="bandLegend" hidden></span>
       <span class="sep"></span>
-      <span class="hint">Click a freq digit to tune (scroll it too) · tap / drag the waterfall</span>
+      <span class="hint" id="scopeHint">Click a freq digit to tune (scroll it too) · tap / drag the waterfall</span>
     </div>
   </section>
 

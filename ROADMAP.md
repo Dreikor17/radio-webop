@@ -43,6 +43,11 @@ just adding a profile.
 - **Band-plan overlay enhancements** (the overlay itself shipped): let the user pick
   their license class to highlight just their privileges and soft-flag tuning outside
   them; make the data region-aware so non-US band plans can drop in.
+- **CW encoder / decoder** — a built-in Morse helper: *decode* received CW by tracking
+  the tone in the RX audio (or the scope peak) into text, with adjustable WPM/threshold;
+  and *encode* typed text to CW for sending via the radio's CW keyer (CI-V keyer/keying
+  or a keyed line). Show a side panel with the decoded text stream and a send box.
+  Decode-only first (RX, no keying); keying respects the same TX-safety failsafe as PTT.
 - **Tone / DTCS** (CTCSS encode/decode) + an editable duplex offset (M3.5).
 - **Memory channels**, band-stacking registers, scan control.
 - **CW** keyer/memories, **RTTY** decode; **DV / D-STAR** (DR, call signs, GPS);

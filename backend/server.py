@@ -28,7 +28,8 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from . import civ, profiles
 from .lan import LanTransport
 from .radio import Radio
-from .transport import SerialTransport, SimTransport, available_ports
+from .transport import SerialTransport, SimTransport, YaesuSimTransport, available_ports
+from .yaesu import YaesuRadio
 
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -85,9 +86,20 @@ class Hub:
 AUDIO_RATE = 16000
 
 hub = Hub()
-radio.on_state = hub.broadcast_state
-radio.on_scope = hub.broadcast_scope
-radio.on_audio = hub.broadcast_audio
+
+# One control stack per protocol; the active one is bound to `radio` and is
+# swapped on connect based on the chosen profile's protocol.
+_icom = radio                 # Icom CI-V radio (created above)
+_yaesu = YaesuRadio()         # Yaesu CAT radio (FT-991A) — COM-only
+
+
+def _bind_radio(r) -> None:
+    r.on_state = hub.broadcast_state
+    r.on_scope = hub.broadcast_scope
+    r.on_audio = hub.broadcast_audio
+
+
+_bind_radio(radio)
 
 
 def _pack_scope(sweep: civ.ScopeSweep, state: dict) -> bytes:
@@ -142,20 +154,31 @@ async def api_ports(request):
 
 
 async def api_connect(request):
+    global radio
     body = await request.json()
     kind = body.get("transport", "sim")
     try:
         profile = profiles.PROFILES.get(body.get("radio"), radio.profile)
+        is_yaesu = getattr(profile, "protocol", "civ") == "yaesu"
+        # route to the matching protocol stack (Icom CI-V vs Yaesu CAT)
+        target = _yaesu if is_yaesu else _icom
+        if target is not radio:
+            radio.disconnect()
+            radio = target
+            _bind_radio(radio)
         if kind == "serial":
-            tp = SerialTransport(body["port"], int(body.get("baud", 115200)))
+            baud = int(body.get("baud") or getattr(profile, "default_baud", 115200))
+            tp = SerialTransport(body["port"], baud, stopbits=2 if is_yaesu else 1)
         elif kind == "lan":
+            if is_yaesu:
+                raise ValueError("The FT-991A is COM-only (no network CAT)")
             host = (body.get("host") or "").strip()
             if not host:
                 raise ValueError("LAN host/IP is required")
             tp = LanTransport(host, int(body.get("port", 50001)),
                               body.get("user", ""), body.get("password", ""))
         else:
-            tp = SimTransport(profile)
+            tp = YaesuSimTransport(profile) if is_yaesu else SimTransport(profile)
         radio.connect(tp, profile)
         return JSONResponse({"ok": True, "transport": radio.state["transport"], "radio": profile.id})
     except Exception as exc:

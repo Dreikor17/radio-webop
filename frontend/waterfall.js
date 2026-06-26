@@ -57,14 +57,19 @@
     resize() {
       const w = Math.max(320, Math.floor(this.wrap.clientWidth));
       const dpr = window.devicePixelRatio || 1;
-      this.W = w;
       // read the laid-out heights so the waterfall fills its pane (falls back to fixed)
-      this.specH = Math.max(80, Math.floor(this.spec.clientHeight) || 150);
-      this.wfH = Math.max(120, Math.floor(this.wf.clientHeight) || 240);
+      const specH = Math.max(80, Math.floor(this.spec.clientHeight) || 150);
+      const wfH = Math.max(120, Math.floor(this.wf.clientHeight) || 240);
       // overlay spans the FULL scope incl. the split gap so canvas-Y == display-Y;
       // otherwise the band-plan strip (drawn at the spectrum bottom) bleeds onto the
       // split handle that sits between the spectrum and waterfall.
-      this.scopeH = Math.max(this.specH + this.wfH, Math.floor(this.wrap.clientHeight) || 0);
+      const scopeH = Math.max(specH + wfH, Math.floor(this.wrap.clientHeight) || 0);
+      // Mobile browsers fire window 'resize' when the address bar shows/hides while
+      // scrolling. Rebuilding here wipes the waterfall, so bail when nothing changed.
+      if (this._sized && w === this.W && specH === this.specH && wfH === this.wfH &&
+          scopeH === this.scopeH && dpr === this._dpr) return;
+      this._sized = true; this._dpr = dpr;
+      this.W = w; this.specH = specH; this.wfH = wfH; this.scopeH = scopeH;
       for (const [c, h] of [[this.spec, this.specH], [this.ov, this.scopeH]]) {
         c.width = w * dpr; c.height = h * dpr;
         c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -89,6 +94,16 @@
       this.octx.clearRect(0, 0, this.W, this.scopeH || (this.specH + this.wfH));
     }
 
+    // No-scope radios (e.g. Yaesu FT-991A CAT): no sweeps, but keep the band-plan
+    // strip + tuned marker + freq labels aligned to the current frequency.
+    showStatic(center, span) {
+      this.lastData = null; this.maxHold = null;
+      this.meta = { mode: 0, center: center || 0, span: span || 200000, lower: 0, upper: 0, tuned: center || 0, filterBw: 0 };
+      this.sctx.fillStyle = "#020c14"; this.sctx.fillRect(0, 0, this.W, this.specH);
+      this.wctx.fillStyle = "#020c14"; this.wctx.fillRect(0, 0, this.W, this.wfH);
+      this.drawOverlay();
+    }
+
     freqToX(f) {
       const m = this.meta;
       let lo, hi;
@@ -103,6 +118,18 @@
       if (m.mode === 1 && m.lower && m.upper) return [m.lower, m.upper];
       const span = m.span || 50000, c = m.center || m.tuned || 0;
       return [c - span / 2, c + span / 2];
+    }
+
+    // distinct band-plan kinds currently visible (for the color-key legend), in display order
+    visibleKinds() {
+      if (!this.bandplan) return [];
+      const [lo, hi] = this.visibleRange();
+      const seen = [];
+      for (const seg of this.bandplan) {
+        if (seg.hi <= lo || seg.lo >= hi) continue;
+        if (seen.indexOf(seg.kind) < 0) seen.push(seg.kind);
+      }
+      return seen;
     }
 
     // band-plan segment under a canvas-space point (for hover tooltips), else null

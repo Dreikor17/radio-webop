@@ -45,9 +45,10 @@ class Transport:
 
 
 class SerialTransport(Transport):
-    def __init__(self, port: str, baud: int = 115200) -> None:
+    def __init__(self, port: str, baud: int = 115200, stopbits: int = 1) -> None:
         self.port = port
         self.baud = baud
+        self.stopbits = stopbits          # Icom CI-V = 1; Yaesu CAT (FT-991A) = 2
         self._ser: Optional[serial.Serial] = None
         self._on_bytes: Optional[Callable[[bytes], None]] = None
         self._thread: Optional[threading.Thread] = None
@@ -59,7 +60,8 @@ class SerialTransport(Transport):
 
     def start(self, on_bytes: Callable[[bytes], None]) -> None:
         self._on_bytes = on_bytes
-        self._ser = serial.Serial(self.port, self.baud, timeout=0.05)
+        sb = serial.STOPBITS_TWO if self.stopbits == 2 else serial.STOPBITS_ONE
+        self._ser = serial.Serial(self.port, self.baud, timeout=0.05, stopbits=sb)
         self._stop.clear()
         self._thread = threading.Thread(target=self._reader, name="civ-serial",
                                         daemon=True)
@@ -359,3 +361,76 @@ def _split_even(data: bytes, parts: int) -> list[bytes]:
         chunks.append(data[i:i + size])
         i += size
     return chunks
+
+
+class YaesuSimTransport(Transport):
+    """A synthetic Yaesu CAT radio (FT-991A): answers FA/FB/MD/SM/TX/ID/IF reads
+    and applies sets, so the FT-991A profile is demoable with no radio. There is
+    no scope (the real FT-991A exposes none over CAT)."""
+
+    def __init__(self, profile=None) -> None:
+        self._on_bytes: Optional[Callable[[bytes], None]] = None
+        self._thread: Optional[threading.Thread] = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._buf = ""
+        self._t0 = time.time()
+        self.freq = profile.default_freq if profile is not None else 14_074_000
+        self.mode = "2"            # USB
+
+    @property
+    def name(self) -> str:
+        return "Simulator (CAT)"
+
+    def start(self, on_bytes: Callable[[bytes], None]) -> None:
+        self._on_bytes = on_bytes
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True, name="yaesu-sim")
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():    # idle; replies are produced in write()
+            time.sleep(0.2)
+
+    def write(self, data: bytes) -> None:
+        try:
+            s = data.decode("ascii", "ignore")
+        except Exception:
+            return
+        with self._lock:
+            self._buf += s
+            while ";" in self._buf:
+                cmd, self._buf = self._buf.split(";", 1)
+                self._handle(cmd.strip())
+
+    def _handle(self, cmd: str) -> None:
+        out = None
+        if cmd == "FA":
+            out = f"FA{self.freq:09d};"
+        elif cmd.startswith("FA") and len(cmd) >= 11:
+            try:
+                self.freq = int(cmd[2:11])
+            except ValueError:
+                pass
+        elif cmd == "FB":
+            out = f"FB{self.freq:09d};"
+        elif cmd == "MD0":
+            out = f"MD0{self.mode};"
+        elif cmd.startswith("MD0") and len(cmd) >= 4:
+            self.mode = cmd[3]
+        elif cmd == "SM0":
+            lvl = int(90 + 70 * abs(math.sin((time.time() - self._t0) * 0.7)))   # wandering S-meter
+            out = f"SM0{min(255, lvl):03d};"
+        elif cmd == "TX":
+            out = "TX0;"
+        elif cmd == "ID":
+            out = "ID0670;"
+        elif cmd == "IF":
+            out = f"IF001{self.freq:09d}+000000{self.mode}0000000;"
+        if out and self._on_bytes:
+            self._on_bytes(out.encode("ascii"))
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=1.0)

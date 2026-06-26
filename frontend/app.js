@@ -87,6 +87,11 @@
       fillBand("main", s.main, s.active_band !== "sub");
       fillBand("sub", s.sub, s.active_band === "sub");
     }
+    // no-scope radios (Yaesu CAT): no sweeps, so drive the band plan + freq labels from freq
+    if (!blanked && currentRadio && currentRadio.has_scope === false) {
+      scope.showStatic(s.freq, 200000);
+      updateScopeLabels(scope.meta);
+    }
     $("rowMain").classList.toggle("active", s.active_band !== "sub");
     $("rowSub").classList.toggle("active", s.active_band === "sub");
     setInd("mainInd", s, s.active_band !== "sub");
@@ -465,18 +470,34 @@
     if (!btn || !ov || !wrap) return;
     scope.bandplan = (window.BANDPLAN || []).map((s) => ({ ...s, lo: s.lo * 1e6, hi: s.hi * 1e6 }));
     const colors = window.BANDPLAN_COLORS || {}, klabel = window.BANDPLAN_KIND_LABEL || {};
+    const legend = $("bandLegend"), hint = $("scopeHint");
+
+    function updateLegend() {
+      if (!legend) return;
+      if (!scope.showBandplan) { legend.hidden = true; legend._sig = null; if (hint) hint.hidden = false; return; }
+      const kinds = scope.visibleKinds(), sig = kinds.join(",");
+      if (sig === legend._sig) return;            // unchanged -> skip re-render
+      legend._sig = sig;
+      legend.innerHTML = kinds.map((k) =>
+        '<span class="lg"><span class="lg-sw" style="background:' + ((colors[k] || "rgba(150,160,180,") + "0.85)") +
+        '"></span>' + (klabel[k] || k) + "</span>").join("");
+      legend.hidden = kinds.length === 0;
+      if (hint) hint.hidden = kinds.length > 0;   // swap the hint out for the legend when we have one
+    }
 
     function apply(on) {
       scope.showBandplan = on;
       btn.classList.toggle("active", on);
       if (!on && tip) tip.hidden = true;
       scope.drawOverlay();
+      updateLegend();
       try { localStorage.setItem("radiowebop.bandplan", on ? "1" : "0"); } catch (_) {}
     }
     btn.addEventListener("click", () => apply(!scope.showBandplan));
     let saved = "0";
     try { saved = localStorage.getItem("radiowebop.bandplan") || "0"; } catch (_) {}
     apply(saved === "1");
+    setInterval(updateLegend, 600);               // refresh the color key as you tune / change span
 
     wrap.addEventListener("mousemove", (e) => {
       if (!scope.showBandplan || !tip) return;
@@ -509,7 +530,8 @@
       radios = j.radios || [];
       const sel = $("radioSel"); sel.innerHTML = "";
       for (const p of radios) {
-        const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
+        const o = document.createElement("option"); o.value = p.id;
+        o.textContent = (p.make ? p.make + " " : "") + p.name; sel.appendChild(o);
       }
     } catch (_) { radios = []; }
     return radios;
@@ -517,7 +539,8 @@
   function renderRadio(p) {
     if (!p) return;
     currentRadio = p;
-    $("modelLabel").textContent = state.connected ? (state.radio_name || p.name) : p.name;
+    const label = (p.make ? p.make + " " : "") + p.name;
+    $("modelLabel").textContent = state.connected ? (state.radio_name || label) : label;
     const br = $("bandRow"); br.innerHTML = ""; br.classList.toggle("band-grid", p.bands.length > 4);
     for (const b of p.bands) {
       const btn = document.createElement("button");
@@ -540,6 +563,11 @@
     const sub = $("rowSub"); if (sub) sub.style.display = p.dual_watch ? "" : "none";
     const pa = $("preampBtn"); if (pa) pa.style.display = p.has_preamp ? "" : "none";
     const at = $("attBtn"); if (at) at.style.display = p.has_att ? "" : "none";
+    // no-scope radios (Yaesu CAT): hide the scope-only controls, show the notice
+    const noScope = p.has_scope === false;
+    const ns = $("noScope"); if (ns) ns.hidden = !noScope;
+    const soc = $("scopeOnlyCtl"); if (soc) soc.hidden = noScope;
+    if (p.default_baud) $("baud").value = p.default_baud;
     applyTitles();
   }
   $("radioSel").addEventListener("change", () => {
@@ -630,9 +658,15 @@
     doConnect(body);                       // collapses the settings on success (mobile)
   };
   $("disconnectBtn").onclick = () => { $("conn").classList.add("open"); fetch("/api/disconnect", { method: "POST" }); };
+  // Enter in any connection field starts the connect
+  ["lanHost", "lanUser", "lanPass", "baud"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("connectBtn").click(); } });
+  });
 
   // ---- RX audio (Web Audio playback of 16-bit LE mono PCM) ----
   let audioCtx = null, audioGain = null, playTime = 0, audioOn = false;
+  let rsFifo = [], rsPos = 0;                       // continuous-resampler state (input samples + fractional read pos)
   function startAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -640,19 +674,33 @@
       audioGain.gain.value = (+$("vol").value || 80) / 100;
       audioGain.connect(audioCtx.destination);
     }
-    audioCtx.resume(); playTime = 0; audioOn = true;
+    audioCtx.resume(); playTime = 0; rsFifo = []; rsPos = 0; audioOn = true;
   }
   function playAudio(buf) {
     if (!audioOn || !audioCtx) return;
     const rate = new DataView(buf).getUint16(2, true) || 16000;
     const pcm = new Int16Array(buf, 4);            // header is 4 bytes
     const n = pcm.length; if (!n) return;
-    const ab = audioCtx.createBuffer(1, n, rate);
-    const ch = ab.getChannelData(0);
-    for (let i = 0; i < n; i++) ch[i] = pcm[i] / 32768;
+    for (let i = 0; i < n; i++) rsFifo.push(pcm[i] / 32768);   // queue this chunk's samples
+    // Resample source-rate -> context-rate with a fractional read position that carries
+    // ACROSS chunks, so consecutive scheduled buffers join seamlessly (no per-chunk
+    // resampler edge clicks, which were the main source of the artifacting).
+    const ctxRate = audioCtx.sampleRate, ratio = rate / ctxRate;
+    const out = [];
+    while (rsPos + 1 < rsFifo.length) {
+      const i0 = rsPos | 0, f = rsPos - i0;
+      out.push(rsFifo[i0] * (1 - f) + rsFifo[i0 + 1] * f);
+      rsPos += ratio;
+    }
+    const drop = rsPos | 0;
+    if (drop > 0) { rsFifo.splice(0, drop); rsPos -= drop; }   // keep only the fractional remainder
+    if (!out.length) return;
+    const ab = audioCtx.createBuffer(1, out.length, ctxRate);
+    ab.getChannelData(0).set(out);
     const src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(audioGain);
     const now = audioCtx.currentTime;
-    if (playTime < now + 0.05) playTime = now + 0.15;   // (re)build jitter buffer on underrun
+    if (playTime < now + 0.06) playTime = now + 0.18;        // prime / rebuild the jitter buffer on underrun
+    else if (playTime > now + 0.5) playTime = now + 0.2;     // bound runaway latency without a hard gap
     src.start(playTime); playTime += ab.duration;
   }
 

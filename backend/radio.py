@@ -46,6 +46,54 @@ def smeter_label(level: int) -> str:
     return f"S9+{db}"
 
 
+def fresh_state(p) -> dict:
+    """Initial UI/state dict for a profile — shared by the CI-V Radio and the
+    Yaesu CAT radio so both speak the same shape to the frontend."""
+    sub_freq = p.bands[1].default if (p.dual_watch and len(p.bands) > 1) else p.default_freq
+    return {
+        "connected": False,
+        "transport": None,
+        "radio": p.id,
+        "radio_name": p.name,
+        "freq": p.default_freq,
+        "mode": 0x01,
+        "mode_name": "USB",
+        "filter": 1,
+        "filter_name": "FIL1",
+        "filter_bw": 2400,
+        "span": 500_000,
+        "span_label": civ.SPAN_LABELS.get(500_000, ""),
+        "scope_center": True,
+        "smeter": 0,
+        "smeter_s": "S0",
+        "af": 128, "rf": 200, "sql": 0, "rfpwr": 0,
+        "ptt": False, "ptt_tot": PTT_TIMEOUT,
+        "audio": False,
+        "dual_watch": p.dual_watch,
+        "active_band": "main",
+        "main": {"freq": p.default_freq, "mode_name": "USB", "filter_name": "FIL1", "smeter": 0, "smeter_s": "S0"},
+        "sub":  {"freq": sub_freq, "mode_name": "FM", "filter_name": "FIL1", "smeter": 0, "smeter_s": "S0"},
+        "meter": "S",
+        "meter_val": 0,
+        "meter_max": civ.METER_MAX,
+        "meter_keys": civ.METER_KEYS,
+        "preamp": 0, "att": 0, "lock": False,
+        "has_preamp": p.has_preamp, "has_att": p.has_att,
+        "nb": 0, "nb_level": 0,
+        "nr": 0, "nr_level": 0,
+        "anotch": 0, "mnotch": 0, "mnotch_w": 0, "mnotch_pos": 128,
+        "agc": 2,
+        "pbt1": 128, "pbt2": 128,
+        "mic": 128, "comp": 0, "comp_level": 128,
+        "vox": 0, "vox_gain": 128, "mon": 0, "mon_level": 128,
+        "tbw": 0,
+        "rit": 0, "rit_freq": 0,
+        "split": 0, "duplex": 0,
+        "offset": 600000,
+        "has_scope": getattr(p, "has_scope", True),
+    }
+
+
 class Radio:
     def __init__(self, profile: Optional[RadioProfile] = None) -> None:
         self.profile = profile or profiles.PROFILES[profiles.DEFAULT_PROFILE_ID]
@@ -69,54 +117,7 @@ class Radio:
         self.state = self._fresh_state()
 
     def _fresh_state(self) -> dict:
-        p = self.profile
-        sub_freq = p.bands[1].default if (p.dual_watch and len(p.bands) > 1) else p.default_freq
-        return {
-            "connected": False,
-            "transport": None,
-            "radio": p.id,
-            "radio_name": p.name,
-            "freq": p.default_freq,
-            "mode": 0x01,
-            "mode_name": "USB",
-            "filter": 1,
-            "filter_name": "FIL1",
-            "filter_bw": 2400,
-            "span": 500_000,
-            "span_label": civ.SPAN_LABELS.get(500_000, ""),
-            "scope_center": True,
-            "smeter": 0,
-            "smeter_s": "S0",
-            "af": 128, "rf": 200, "sql": 0, "rfpwr": 0,
-            "ptt": False, "ptt_tot": PTT_TIMEOUT,
-            "audio": False,
-            # dual-watch (IC-9700 MAIN/SUB receivers); single-rx radios use main only
-            "dual_watch": p.dual_watch,
-            "active_band": "main",
-            "main": {"freq": p.default_freq, "mode_name": "USB", "filter_name": "FIL1", "smeter": 0, "smeter_s": "S0"},
-            "sub":  {"freq": sub_freq, "mode_name": "FM", "filter_name": "FIL1", "smeter": 0, "smeter_s": "S0"},
-            # multi-meter (S live; TX meters wired for M3)
-            "meter": "S",
-            "meter_val": 0,
-            "meter_max": civ.METER_MAX,
-            "meter_keys": civ.METER_KEYS,
-            # core RX controls
-            "preamp": 0, "att": 0, "lock": False,
-            "has_preamp": p.has_preamp, "has_att": p.has_att,
-            # RX DSP (M2)
-            "nb": 0, "nb_level": 0,
-            "nr": 0, "nr_level": 0,
-            "anotch": 0, "mnotch": 0, "mnotch_w": 0, "mnotch_pos": 128,
-            "agc": 2,                          # 1 FAST, 2 MID, 3 SLOW
-            "pbt1": 128, "pbt2": 128,          # twin PBT, 128 = center
-            # TX (M3)
-            "mic": 128, "comp": 0, "comp_level": 128,
-            "vox": 0, "vox_gain": 128, "mon": 0, "mon_level": 128,
-            "tbw": 0,                          # SSB TX bandwidth: 0 WIDE, 1 MID, 2 NAR
-            "rit": 0, "rit_freq": 0,           # RIT on + offset Hz (signed, ±9999)
-            "split": 0, "duplex": 0,           # split on; duplex 0 SIMP, 1 DUP-, 2 DUP+
-            "offset": 600000,                  # duplex offset Hz
-        }
+        return fresh_state(self.profile)
 
     def _b(self, cmd: int, sub: Optional[int] = None, data: bytes = b"") -> bytes:
         """Build a CI-V frame addressed to this radio's CI-V address."""

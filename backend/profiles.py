@@ -37,6 +37,10 @@ class RadioProfile:
     dual_watch: bool = False      # True for dual-receiver radios (IC-9700 MAIN/SUB)
     has_preamp: bool = True        # P.AMP available
     has_att: bool = True           # attenuator available
+    make: str = "Icom"            # manufacturer, shown before the model in the picker
+    protocol: str = "civ"         # "civ" (Icom CI-V) | "yaesu" (Yaesu CAT)
+    has_scope: bool = True        # False = no spectrum/waterfall over the control link
+    default_baud: int = 115200    # default serial baud for the connection bar
 
     def band_default(self, name: str) -> Optional[int]:
         for b in self.bands:
@@ -47,6 +51,8 @@ class RadioProfile:
     def to_json(self) -> dict:
         return {
             "id": self.id, "name": self.name,
+            "make": self.make, "protocol": self.protocol, "has_scope": self.has_scope,
+            "default_baud": self.default_baud,
             "modes": self.modes,
             "bands": [{"name": b.name, "lo": b.lo, "hi": b.hi, "def": b.default} for b in self.bands],
             "steps": [{"v": v, "label": lbl} for v, lbl in self.steps],
@@ -114,5 +120,41 @@ IC7300MK2 = RadioProfile(
     default_step=100,
 )
 
-PROFILES = {p.id: p for p in (IC9700, IC7300MK2)}
+# Yaesu FT-991A — all-mode HF/50/144/430 MHz. Yaesu CAT (serial), COM-only: no
+# Ethernet, and NO band scope over CAT (display-only scope), so no waterfall.
+# civ_addr / mod_* are unused by the Yaesu path but the dataclass requires them.
+FT991A = RadioProfile(
+    id="ft991a", name="FT-991A", civ_addr=0x00,
+    make="Yaesu", protocol="yaesu", has_scope=False, default_baud=38400,
+    modes=["LSB", "USB", "CW", "CW-R", "AM", "FM", "RTTY", "RTTY-R"],
+    bands=[
+        Band("160", 1_800_000, 2_000_000, 1_840_000),
+        Band("80", 3_500_000, 4_000_000, 3_700_000),
+        Band("60", 5_330_500, 5_403_500, 5_330_500),
+        Band("40", 7_000_000, 7_300_000, 7_074_000),
+        Band("30", 10_100_000, 10_150_000, 10_136_000),
+        Band("20", 14_000_000, 14_350_000, 14_074_000),
+        Band("17", 18_068_000, 18_168_000, 18_100_000),
+        Band("15", 21_000_000, 21_450_000, 21_074_000),
+        Band("12", 24_890_000, 24_990_000, 24_915_000),
+        Band("10", 28_000_000, 29_700_000, 28_074_000),
+        Band("6", 50_000_000, 54_000_000, 50_313_000),
+        Band("2", 144_000_000, 148_000_000, 144_200_000),
+        Band("70", 430_000_000, 450_000_000, 432_100_000),
+    ],
+    filter_bw={
+        "LSB": _SSB, "USB": _SSB, "CW": _CW, "CW-R": _CW,
+        "RTTY": _RTTY, "RTTY-R": _RTTY,
+        "AM": {1: 9000, 2: 6000, 3: 3000}, "FM": {1: 16000, 2: 9000, 3: 9000},
+    },
+    mod_dataoff=(0x00, 0x00), lan_mod_level=(0x00, 0x00),
+    power_zero_bands=[],
+    default_freq=14_074_000,
+    steps=[(10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"), (2500, "2.5 kHz"),
+           (5000, "5 kHz"), (10000, "10 kHz"), (25000, "25 kHz")],
+    default_step=100,
+    has_preamp=False, has_att=False,
+)
+
+PROFILES = {p.id: p for p in (IC9700, IC7300MK2, FT991A)}
 DEFAULT_PROFILE_ID = "ic9700"

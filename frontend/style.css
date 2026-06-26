@@ -75,6 +75,7 @@ select,input,.baud{
 }
 .baud{width:80px}
 .lan-fields{display:inline-flex;gap:6px}
+.lan-fields[hidden]{display:none}   /* the [hidden] attr is set for COM/sim; keep it hiding past the display rule */
 .lan-host{width:170px}
 .lan-user{width:90px}
 .lan-pass{width:100px}
@@ -137,6 +138,14 @@ select,input,.baud{
 .span-val{font-family:var(--mono);color:#bfe6ff;min-width:54px;text-align:center}
 .scope-ctl .sep{flex:0 0 1px;height:18px;background:#14425c;margin:0 4px}
 .scope-ctl .hint{color:var(--txt-dim);font-size:11px;margin-left:auto}
+.bandlegend{display:inline-flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--txt-dim)}
+.bandlegend[hidden]{display:none}
+.bandlegend .lg{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.bandlegend .lg-sw{width:11px;height:11px;border-radius:2px;border:1px solid rgba(255,255,255,.25);flex:0 0 auto}
+.no-scope{position:absolute;left:0;right:0;top:34%;text-align:center;color:var(--txt-dim);
+  font-size:13px;letter-spacing:.5px;pointer-events:none;padding:0 12px}
+.no-scope[hidden]{display:none}
+#scopeOnlyCtl[hidden]{display:none}
 
 /* ---- controls column ---- */
 /* top deck: display (scope/waterfall) on the left, MAIN DIAL + AUDIO at the top-right */
