@@ -455,6 +455,48 @@
     applyTheme(t === "day");
   })();
 
+  // ---- band-plan overlay (ARRL band plan on VHF/UHF, FCC license-class on HF) ----
+  (function () {
+    const btn = $("bandPlanBtn"), tip = $("bandTip"), ov = $("overlay"), wrap = $("scopeWrap");
+    if (!btn || !ov || !wrap) return;
+    scope.bandplan = (window.BANDPLAN || []).map((s) => ({ ...s, lo: s.lo * 1e6, hi: s.hi * 1e6 }));
+    const colors = window.BANDPLAN_COLORS || {}, klabel = window.BANDPLAN_KIND_LABEL || {};
+
+    function apply(on) {
+      scope.showBandplan = on;
+      btn.classList.toggle("active", on);
+      if (!on && tip) tip.hidden = true;
+      scope.drawOverlay();
+      try { localStorage.setItem("radiowebop.bandplan", on ? "1" : "0"); } catch (_) {}
+    }
+    btn.addEventListener("click", () => apply(!scope.showBandplan));
+    let saved = "0";
+    try { saved = localStorage.getItem("radiowebop.bandplan") || "0"; } catch (_) {}
+    apply(saved === "1");
+
+    wrap.addEventListener("mousemove", (e) => {
+      if (!scope.showBandplan || !tip) return;
+      const r = ov.getBoundingClientRect();
+      const px = (e.clientX - r.left) * (scope.W / r.width);
+      const py = (e.clientY - r.top) * ((scope.specH + scope.wfH) / r.height);
+      const seg = scope.bandplanSegAt(px, py);
+      if (!seg) { tip.hidden = true; return; }
+      const base = colors[seg.kind] || "rgba(150,160,180,";
+      tip.innerHTML =
+        '<div class="bt-h"><span class="bt-sw" style="background:' + base + '0.9)"></span>' + seg.label + "</div>" +
+        '<div class="bt-rng">' + (seg.lo / 1e6).toFixed(3) + " – " + (seg.hi / 1e6).toFixed(3) +
+        " MHz · " + (klabel[seg.kind] || seg.kind) + "</div>" +
+        '<div class="bt-d">' + seg.desc + "</div>";
+      tip.hidden = false;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let x = e.clientX + 14, y = e.clientY + 14;
+      if (x + tw > window.innerWidth - 8) x = e.clientX - tw - 14;
+      if (y + th > window.innerHeight - 8) y = e.clientY - th - 14;
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    });
+    wrap.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
+  })();
+
   // ---- radio profiles (bands/modes/steps render from the selected radio) ----
   function selectedRadio() { return radios.find(p => p.id === $("radioSel").value) || radios[0] || null; }
   async function loadRadios() {

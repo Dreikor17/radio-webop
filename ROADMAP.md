@@ -28,19 +28,21 @@ just adding a profile.
 - Reference: full per-control map in `docs/CONTROL-MAP.md`, screen/menu blueprint
   in `docs/UI-SPEC.md`.
 
+### Band-plan overlay
+- **ARRL band plan / FCC license-class overlay** on the scope — a toggleable strip
+  along the spectrum showing the segments for the band in view, aligned to the
+  frequency axis, with a hover tooltip giving the range, type, modes and notes.
+  VHF/UHF (2 m / 70 cm / 23 cm) is colored by **use** (CW / weak-signal / SSB / FM /
+  repeater / simplex / satellite / beacon / digital, ARRL voluntary band plan); HF +
+  6 m is colored by **license class** (Technician / General / Extra sub-bands, FCC
+  Part 97). Data in `frontend/bandplan.js`, compiled + adversarially verified.
+
 ## Planned
 
 ### Operating
-- **License-privilege band overlay** — a subtle, toggleable overlay on the scope /
-  waterfall that marks the US amateur sub-bands by **license class (Technician /
-  General / Amateur Extra)**, aligned to the frequency axis, with a **hover tooltip
-  listing the modes/privileges allowed** in each segment (and max power). Pick your
-  class to highlight your privileges and soft-flag tuning outside them.
-  *Notes:* on the IC-9700's VHF/UHF bands (2 m / 70 cm / 23 cm) all classes share
-  full privileges, so the class split mainly matters on HF (IC-7300MK2 + future HF
-  radios); on VHF/UHF the same overlay can instead show the voluntary band plan
-  (CW / weak-signal / SSB / FM simplex / repeater / satellite segments). Data =
-  FCC Part 97 band-privilege chart; keep it region-aware so non-US plans can drop in.
+- **Band-plan overlay enhancements** (the overlay itself shipped): let the user pick
+  their license class to highlight just their privileges and soft-flag tuning outside
+  them; make the data region-aware so non-US band plans can drop in.
 - **Tone / DTCS** (CTCSS encode/decode) + an editable duplex offset (M3.5).
 - **Memory channels**, band-stacking registers, scan control.
 - **CW** keyer/memories, **RTTY** decode; **DV / D-STAR** (DR, call signs, GPS);

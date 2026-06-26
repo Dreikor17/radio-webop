@@ -5,6 +5,7 @@
 
   const AMP_MAX = 160;            // documented 27 00 data range
   const FLOOR_DB = 22;            // approximate noise floor amplitude
+  const STRIP_H = 16;             // band-plan strip height (px) along the spectrum bottom
 
   function buildLUT() {
     // Icom-style waterfall colormap: dark navy -> blue -> cyan -> green -> yellow -> red -> white
@@ -47,6 +48,8 @@
       this.meta = { mode: 0, center: 0, span: 50000, lower: 0, upper: 0, tuned: 0, filterBw: 2400 };
       this.lastData = null;
       this.maxHold = null;
+      this.bandplan = null;        // [{lo,hi (Hz), label, desc, kind}]
+      this.showBandplan = false;
       this.resize();
       window.addEventListener("resize", () => this.resize());
     }
@@ -89,6 +92,26 @@
       else { const span = m.span || 50000; lo = (m.center || f) - span / 2; hi = (m.center || f) + span / 2; }
       if (hi <= lo) return this.W / 2;
       return ((f - lo) / (hi - lo)) * this.W;
+    }
+
+    visibleRange() {
+      const m = this.meta;
+      if (m.mode === 1 && m.lower && m.upper) return [m.lower, m.upper];
+      const span = m.span || 50000, c = m.center || m.tuned || 0;
+      return [c - span / 2, c + span / 2];
+    }
+
+    // band-plan segment under a canvas-space point (for hover tooltips), else null
+    bandplanSegAt(px, py) {
+      if (!this.showBandplan || !this.bandplan) return null;
+      const sy = this.specH - STRIP_H;
+      if (py < sy - 2 || py > this.specH + 2) return null;
+      const [lo, hi] = this.visibleRange();
+      for (const seg of this.bandplan) {
+        if (seg.hi <= lo || seg.lo >= hi) continue;
+        if (px >= this.freqToX(seg.lo) && px <= this.freqToX(seg.hi)) return seg;
+      }
+      return null;
     }
 
     pushSweep(meta, data) {
@@ -179,6 +202,38 @@
         ctx.fillStyle = "rgba(255,80,80,.9)"; ctx.font = "11px monospace";
         ctx.fillText("OUT OF RANGE", w / 2 - 40, this.specH / 2);
       }
+      this.drawBandplan();
+    }
+
+    drawBandplan() {
+      if (!this.showBandplan || !this.bandplan || !this.bandplan.length) return;
+      const ctx = this.octx, w = this.W;
+      const [lo, hi] = this.visibleRange();
+      const sy = this.specH - STRIP_H;
+      const colors = global.BANDPLAN_COLORS || {};
+      ctx.font = "10px Consolas, monospace";
+      ctx.textBaseline = "middle";
+      for (const seg of this.bandplan) {
+        if (seg.hi <= lo || seg.lo >= hi) continue;
+        const x0 = Math.max(0, this.freqToX(seg.lo));
+        const x1 = Math.min(w, this.freqToX(seg.hi));
+        const bw = x1 - x0;
+        if (bw <= 0.5) continue;
+        const base = colors[seg.kind] || "rgba(150,160,180,";
+        ctx.fillStyle = base + "0.30)";
+        ctx.fillRect(x0, sy, bw, STRIP_H);
+        ctx.strokeStyle = base + "0.85)"; ctx.lineWidth = 1;
+        ctx.strokeRect(x0 + 0.5, sy + 0.5, Math.max(0, bw - 1), STRIP_H - 1);
+        if (bw > 24) {
+          ctx.save();
+          ctx.beginPath(); ctx.rect(x0 + 1, sy, bw - 2, STRIP_H); ctx.clip();
+          ctx.fillStyle = "rgba(255,255,255,.95)";
+          ctx.textAlign = "center";
+          ctx.fillText(seg.label, (x0 + x1) / 2, sy + STRIP_H / 2 + 0.5);
+          ctx.restore();
+        }
+      }
+      ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
     }
   }
 
