@@ -73,6 +73,15 @@
 
     setOpMode(m) { if (m) { this.opMode = m; this.drawOverlay(); } }
 
+    clear() {
+      this.lastData = null;
+      this.maxHold = null;
+      this.meta = { mode: 0, center: 0, span: this.meta.span || 50000, lower: 0, upper: 0, tuned: 0, filterBw: 0 };
+      this.wctx.fillStyle = "#020c14"; this.wctx.fillRect(0, 0, this.W, this.wfH);
+      this.sctx.clearRect(0, 0, this.W, this.specH);
+      this.octx.clearRect(0, 0, this.W, this.specH + this.wfH);
+    }
+
     freqToX(f) {
       const m = this.meta;
       let lo, hi;

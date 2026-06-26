@@ -6,6 +6,7 @@
   const scope = new Scope($("spectrum"), $("waterfall"), $("overlay"), $("scopeWrap"));
 
   let ws = null, state = {}, step = 25000;
+  let blanked = false;                            // after a radio change: VFO zeroed + waterfall cleared until reconnect
   let radios = [], currentRadio = null;          // radio profiles from /api/radios
   let pttIntended = false, pttKeyedAt = 0;       // PTT toggle state + time keyed
   const LEVELS = ["af", "rf", "sql", "rfpwr", "nb_level", "nr_level", "pbt1", "pbt2", "mnotch_pos",
@@ -46,6 +47,7 @@
   }
 
   function parseScope(buf) {
+    if (blanked) return;                          // radio changed: ignore sweeps so the waterfall stays cleared
     const dv = new DataView(buf);
     if (dv.getUint8(0) !== 0x53) return;
     const npoints = dv.getUint16(3, true);
@@ -78,8 +80,13 @@
     state = s;
     // dual-watch band readout (MAIN/SUB); single-rx radios show MAIN only
     $("rowSub").style.display = s.dual_watch ? "" : "none";
-    fillBand("main", s.main, s.active_band !== "sub");
-    fillBand("sub", s.sub, s.active_band === "sub");
+    if (blanked) {                                  // radio just changed: keep VFOs zeroed until a fresh connect
+      renderFreq($("mainFreq"), 0, false);
+      renderFreq($("subFreq"), 0, false);
+    } else {
+      fillBand("main", s.main, s.active_band !== "sub");
+      fillBand("sub", s.sub, s.active_band === "sub");
+    }
     $("rowMain").classList.toggle("active", s.active_band !== "sub");
     $("rowSub").classList.toggle("active", s.active_band === "sub");
     setInd("mainInd", s, s.active_band !== "sub");
@@ -492,6 +499,11 @@
   $("radioSel").addEventListener("change", () => {
     renderRadio(selectedRadio());
     saveConn();
+    blanked = true;                                 // new radio: blank the readout + waterfall until reconnect
+    scope.clear();
+    renderFreq($("mainFreq"), 0, false);
+    renderFreq($("subFreq"), 0, false);
+    $("lblLeft").textContent = $("lblCenter").textContent = $("lblRight").textContent = "";
     if (state.connected) {                          // switching radios -> drop the current connection
       fetch("/api/disconnect", { method: "POST" });
       $("conn").classList.add("open");              // reopen the connect controls so they can reconnect
@@ -559,7 +571,7 @@
     try {
       const r = await fetch("/api/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (j.ok) $("conn").classList.remove("open");      // collapse settings on success (mobile)
+      if (j.ok) { $("conn").classList.remove("open"); blanked = false; }   // fresh connection -> live data again
       else if (!silent) alert("Connect failed: " + (j.error || "unknown"));
     } catch (e) { if (!silent) alert("Connect error: " + e); }
     finally { btn.textContent = "Connect"; btn.disabled = false; }

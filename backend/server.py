@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional, Set
 
 from starlette.applications import Starlette
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -109,8 +109,23 @@ def _pack_scope(sweep: civ.ScopeSweep, state: dict) -> bytes:
 
 
 # -- HTTP routes -------------------------------------------------------------
+def _asset_version():
+    """Token from frontend file mtimes so the browser refetches updated assets."""
+    try:
+        return str(int(max(
+            (FRONTEND / f).stat().st_mtime
+            for f in ("index.html", "app.js", "waterfall.js", "style.css")
+        )))
+    except OSError:
+        return "0"
+
+
 async def index(request):
-    return FileResponse(FRONTEND / "index.html")
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    v = _asset_version()
+    for asset in ("app.js", "waterfall.js", "style.css"):
+        html = html.replace(f"/static/{asset}", f"/static/{asset}?v={v}")
+    return HTMLResponse(html)
 
 
 async def api_radios(request):
