@@ -164,11 +164,17 @@
       if (s[t] != null) $(t + "Val").textContent = fmtLevel(t, s[t]);
     }
 
-    // keep overlay tracking between sweeps
-    scope.setOpMode(s.mode_name);
-    scope.meta.tuned = s.freq;
-    scope.meta.filterBw = s.filter_bw;
-    scope.drawOverlay();
+    // Keep the marker + filter passband tracking the tuned freq between real CI-V
+    // scope sweeps. The AF audio scope (no-scope radios with RX audio on) owns the
+    // overlay and intentionally draws no marker (the dial sits at an edge), so skip
+    // this while it runs — otherwise every state update stamps a marker the next AF
+    // frame wipes, i.e. it flickers.
+    if (!afTimer) {
+      scope.setOpMode(s.mode_name);
+      scope.meta.tuned = s.freq;
+      scope.meta.filterBw = s.filter_bw;
+      scope.drawOverlay();
+    }
   }
 
   const BAND_LABEL = { "144": "2 m", "430": "70 cm", "1200": "23 cm" };
