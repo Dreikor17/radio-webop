@@ -178,6 +178,8 @@ class Radio:
         self._emit_state()
 
         threading.Thread(target=self._zero_power, daemon=True, name="civ-pwr0").start()
+        if getattr(self.profile, "tot_civ", ()):            # safety: hardware TX time-out backstop
+            self._write(self._b(0x1A, 0x05, bytes(self.profile.tot_civ)))
         if getattr(transport, "supports_audio", False):     # LAN: route TX modulation to LAN
             threading.Thread(target=self._setup_lan_mod, daemon=True, name="civ-lanmod").start()
 

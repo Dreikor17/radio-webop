@@ -3,6 +3,17 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- **Transmit-safety contract** ([docs/ADDING-A-RADIO.md](docs/ADDING-A-RADIO.md)) — a gate
+  for every radio that can key TX: the 120 s PTT failsafe, hardware TOT on connect, high-SWR
+  cutoff + warning, RF power 0 % on connect, unkey-on-disconnect, and no autonomous TX.
+- **Hardware TX time-out timer set on connect** — a backstop if the control link drops
+  mid-transmit. FT-991A = 2 min (120 s exactly); IC-9700 / IC-7300MK2 = 3 min (their coarsest
+  non-OFF step — the app's 120 s PTT failsafe stays the precise limit). Verified on hardware.
+- **CW coder WPM control** — the type-to-Morse sidetone speed is adjustable (5–40 WPM).
+
 ## [0.2.10] — 2026-06-26
 
 Big FT-991A + tooling release. **Note: this version relicenses Radio WebOp to

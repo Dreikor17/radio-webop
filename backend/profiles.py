@@ -44,6 +44,12 @@ class RadioProfile:
     has_preamp: bool = True        # P.AMP available
     has_att: bool = True           # attenuator available
     has_tuner: bool = False        # internal antenna tuner (in/out toggle) available
+    # Safety: hardware TX time-out timer set on connect (backstop if the control link drops
+    # mid-transmit). Icom = CI-V 1A 05 (datanum_hi, datanum_lo, value); Yaesu = a CAT EX
+    # string. ~120 s where the radio allows — Icom's coarsest non-OFF step is 3 min, so the
+    # app's 120 s PTT failsafe stays the precise limit there. See docs/ADDING-A-RADIO.md.
+    tot_civ: tuple = ()            # Icom: (0x00, datanum_lo, value); () = none
+    tot_cat: str = ""              # Yaesu: full CAT EX string; "" = none
     make: str = "Icom"            # manufacturer, shown before the model in the picker
     protocol: str = "civ"         # "civ" (Icom CI-V) | "yaesu" (Yaesu CAT)
     has_scope: bool = True        # False = no spectrum/waterfall over the control link
@@ -96,6 +102,7 @@ IC9700 = RadioProfile(
         "DV": {1: 6250, 2: 6250, 3: 6250}, "DD": {1: 130000, 2: 130000, 3: 130000},
     },
     mod_dataoff=(0x01, 0x15), lan_mod_level=(0x01, 0x14),
+    tot_civ=(0x00, 0x41, 0x01),     # TX TOT 0041 = 3 min (no 2-min step; app's 120 s failsafe is the precise limit)
     power_zero_bands=[145_000_000, 435_000_000, 1_295_000_000],
     default_freq=144_200_000,
     steps=[(10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"), (5000, "5 kHz"),
@@ -142,6 +149,7 @@ IC7300MK2 = RadioProfile(
         "AM": {1: 9000, 2: 6000, 3: 3000}, "FM": {1: 15000, 2: 10000, 3: 7000},
     },
     mod_dataoff=(0x00, 0x84), lan_mod_level=(0x00, 0x83),
+    tot_civ=(0x00, 0x32, 0x01),     # TX TOT 0032 = 3 min (closest to 120 s)
     power_zero_bands=[],            # HF RF power is a single setting
     default_freq=14_074_000,
     steps=[(1, "1 Hz"), (10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"),
@@ -196,6 +204,7 @@ FT991A = RadioProfile(
         "DATA-FM": {1: 16000, 2: 9000, 3: 9000}, "C4FM": {1: 16000, 2: 16000, 3: 16000},
     },
     mod_dataoff=(0x00, 0x00), lan_mod_level=(0x00, 0x00),
+    tot_cat="EX03602;",             # menu 036 TX TOT = 2 min = 120 s (exact)
     power_zero_bands=[],
     default_freq=14_074_000,
     steps=[(10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"), (2500, "2.5 kHz"),

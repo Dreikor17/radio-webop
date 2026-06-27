@@ -92,6 +92,8 @@ class YaesuRadio:
         # radio's REAL state on connect, not defaults.
         for cmd in ("ID;", "IF;", "FA;", "MD0;", "SM0;") + self._SETTINGS:
             self._send(cmd)
+        if getattr(self.profile, "tot_cat", ""):            # safety: hardware TX time-out backstop
+            self._send(self.profile.tot_cat)
         self._poll_stop.clear()
         self._poll_thread = threading.Thread(target=self._poll, daemon=True, name="yaesu-poll")
         self._poll_thread.start()
