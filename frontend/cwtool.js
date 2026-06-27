@@ -198,7 +198,6 @@
   $("cwClear").addEventListener("click", () => { committed = ""; live = ""; render(); });
 
   // ---- coder (text -> Morse sidetone; never transmits) ----
-  const SEND_WPM = 18;
   $("cwPlay").addEventListener("click", () => playMorse($("cwSend").value));
   $("cwSend").addEventListener("keydown", (e) => { if (e.key === "Enter") playMorse($("cwSend").value); });
   function playMorse(text) {
@@ -206,7 +205,8 @@
     ra.ensure();
     const ctx = ra.ctx(), bus = ra.bus();
     if (!ctx || !bus || !text) return;
-    const dot = 1.2 / SEND_WPM;
+    const wpm = Math.max(5, Math.min(40, +$("cwWpmSet").value || 18));
+    const dot = 1.2 / wpm;
     const tone = +$("cwToneSet").value || 600;
     const osc = ctx.createOscillator(); osc.type = "sine"; osc.frequency.value = tone;
     const g = ctx.createGain(); g.gain.value = 0.0001;

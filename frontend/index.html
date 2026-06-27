@@ -154,9 +154,14 @@
           <button class="key sm" id="cwClear">Clear</button>
         </div>
         <div class="cw-row">
-          <input id="cwSend" class="cw-send" placeholder="type → Morse sidetone (no transmit)" maxlength="160">
-          <input type="range" id="cwToneSet" min="400" max="1000" step="10" value="600" class="cw-tone" title="Sidetone pitch">
-          <button class="key sm" id="cwPlay" title="Play as a CW sidetone — does NOT key the radio">&#9654;</button>
+          <input id="cwSend" class="cw-send" placeholder="type → Morse (local sidetone, no transmit)" maxlength="160">
+          <button class="key sm" id="cwPlay" title="Play locally as a sidetone — does NOT key the radio">&#9654;</button>
+        </div>
+        <div class="cw-row">
+          <span class="cw-lbl">WPM</span>
+          <input type="number" id="cwWpmSet" min="5" max="40" value="18" class="cw-wpm" title="CW speed (words per minute)">
+          <span class="cw-lbl">Tone</span>
+          <input type="range" id="cwToneSet" min="400" max="1000" step="10" value="600" title="Sidetone pitch">
         </div>
         <div class="cw-credit">neural decode: <a href="https://github.com/e04/deepcw-engine" target="_blank" rel="noopener">DeepCW</a> (AGPL-3.0) ·
           <a href="https://github.com/Dreikor17/radio-webop" target="_blank" rel="noopener">source</a></div>

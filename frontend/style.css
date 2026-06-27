@@ -200,6 +200,7 @@ select,input,.baud{
 .cw-num b{color:var(--txt);font-family:var(--mono)}
 .cw-status{color:var(--txt-dim);font-family:var(--mono);font-size:10px}
 .cw-row input.cw-tone{flex:0 0 64px;min-width:64px}
+.cw-row input.cw-wpm{flex:0 0 52px;min-width:52px}
 .cw-credit{font-size:9px;color:var(--txt-dim);opacity:.7;margin-top:3px;text-align:center}
 .cw-credit a{color:var(--txt-dim);text-decoration:none}
 .cw-credit a:hover{text-decoration:underline}
