@@ -1,10 +1,16 @@
 """
-Radio profiles — everything that differs between supported Icom models lives
-here, so adding a radio is just adding a RadioProfile to PROFILES.
+Radio profiles — everything that differs between supported radios lives here, so
+adding a radio is mostly just adding a RadioProfile to PROFILES (a new make/protocol
+also needs a handler class).
 
-Shared protocol (CI-V framing, the 27 00 scope, the RS-BA1 LAN transport, audio)
-is identical across these radios; only the address, band plan, mode set, filter
-widths and a couple of MOD-Input menu numbers change.
+Within a make the protocol is shared (Icom: CI-V framing, the 27 00 scope, RS-BA1 LAN,
+audio; Yaesu: CAT) — only address/baud, band plan, mode set, filter widths and a couple
+of menu numbers change per model.
+
+>>> ADDING A RADIO? Follow the transmit-safety contract in docs/ADDING-A-RADIO.md.
+Every radio that can key TX MUST have: the 120 s PTT stuck-TX failsafe, TOT set on
+connect, the high-SWR cutoff + warning, RF power 0% on connect, unkey-on-disconnect, and
+NO autonomous transmission (PTT relays the operator only). Not optional. <<<
 """
 from __future__ import annotations
 
