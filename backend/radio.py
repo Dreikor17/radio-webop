@@ -10,6 +10,7 @@ numbers, power behaviour) come from a RadioProfile (see profiles.py).
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from typing import Callable, Optional
@@ -17,6 +18,14 @@ from typing import Callable, Optional
 from . import civ, menu_engine, profiles
 from .profiles import RadioProfile
 from .transport import Transport
+
+# Windows quantises time.sleep to ~15 ms unless the multimedia timer resolution is raised;
+# the fast meter poll wants a stable ~40 ms cadence, so bracket the poll loop with it.
+try:
+    import ctypes
+    _WINMM = ctypes.WinDLL("winmm")
+except Exception:
+    _WINMM = None
 
 MOD_LAN = 0x05                 # CI-V value selecting the LAN modulation source (all models)
 PTT_TIMEOUT = 120              # PTT failsafe: auto-unkey after this many seconds keyed
@@ -172,6 +181,9 @@ class Radio:
         self.on_state: Optional[StateCb] = None
         self.on_audio: Optional[Callable[[bytes], None]] = None
         self.on_menu: Optional[Callable] = None
+        self.on_meter: Optional[Callable] = None      # fast meter channel (separate from full state)
+        self._poll_dt = 0.04                          # poll interval (s); set per-transport on connect
+        self._last_sig = None                         # last non-meter state sig (dedup full frames)
         self._menu_index = {}     # num (1A 05 data number) -> MenuItem, built on connect
         self._menu_vals = {}      # num -> last decoded menu value (cache)
         self._modsrc_orig: Optional[int] = None     # original DATA OFF MOD (for restore)
@@ -303,6 +315,9 @@ class Radio:
         self._write(self._b(0x0F))                       # split / duplex
         self._write(self._b(0x0C))                       # duplex offset
 
+        # Meter cadence: fast on direct serial (USB CI-V); easier on LAN, where each read is a
+        # UDP round-trip to the radio, so don't outrun the reply rate.
+        self._poll_dt = 0.08 if getattr(transport, "supports_audio", False) else 0.04
         self._poll_stop.clear()
         self._poll_thread = threading.Thread(target=self._poll, daemon=True, name="civ-poll")
         self._poll_thread.start()
@@ -383,6 +398,7 @@ class Radio:
     def _dispatch(self, fr: civ.Frame) -> None:
         c, s, d = fr.cmd, fr.sub, fr.data
         changed = False
+        meter_changed = False         # meter-only updates ride the lightweight meter channel
         if c == 0x27 and s == 0x00:
             sweep = self._scope.feed(d)
             if sweep and self.on_scope:
@@ -418,7 +434,7 @@ class Radio:
             if key:
                 self.state[key] = civ.bcd_to_level(d)
                 changed = True
-        elif c == 0x15:                                  # multi-meter
+        elif c == 0x15:                                  # multi-meter (fast channel, not full state)
             lvl = civ.bcd_to_level(d)
             if s == 0x02:                                # S-meter (active band)
                 ab = self.state["active_band"]
@@ -428,10 +444,10 @@ class Radio:
                 self.state[ab]["smeter_s"] = smeter_label(lvl)
                 if self.state["meter"] == "S":
                     self.state["meter_val"] = lvl
-                changed = True
+                meter_changed = True
             elif civ.METER_SUBS.get(self.state["meter"]) == s:
                 self.state["meter_val"] = lvl
-                changed = True
+                meter_changed = True
         elif c == 0x07 and s == 0xD2:                    # main-band selection state (01 = MAIN operating)
             if d:
                 self.state["active_band"] = "main" if d[-1] == 1 else "sub"
@@ -475,6 +491,8 @@ class Radio:
         if changed:
             self._recalc_filter_bw()
             self._emit_state()
+        elif meter_changed:
+            self._emit_meter()        # meter-only: tiny frame, no full-state re-serialize
 
     @staticmethod
     def _payload(sub: Optional[int], data: bytes) -> bytes:
@@ -489,31 +507,47 @@ class Radio:
     # -- polling -------------------------------------------------------------
     def _poll(self) -> None:
         tick = 0
-        while not self._poll_stop.is_set():
-            # TX failsafe: never leave the radio able to transmit past the time-out —
-            # covers both latched PTT and VOX (which auto-keys off the modulator audio).
-            if self._ptt_deadline and time.monotonic() >= self._ptt_deadline:
-                if self.state["ptt"]:
-                    self.set_ptt(False)
-                if self.state.get("vox"):
-                    self.set_rx_func("vox", False)
-            # CW-TX bounded auto-stop: the rig self-keys the message via BK-IN, so the
-            # PTT failsafe doesn't cover it — stop it (and clear the indicator) once the
-            # message should be done.
-            if self._cw_deadline and time.monotonic() >= self._cw_deadline:
-                self.stop_cw()
-            self._write(self._b(0x15, 0x02))             # S-meter (active band)
-            if self.state["meter"] != "S":               # selected TX meter for the big bar
-                self._write(self._b(0x15, civ.METER_SUBS[self.state["meter"]]))
-            if tick % 8 == 0:                            # ~1.2s: catch panel changes
-                self._write(self._b(0x03))
-                self._write(self._b(0x04))
-                if self.state["dual_watch"]:             # is MAIN the operating band?
-                    self._write(self._b(0x07, 0xD2, b"\x00"))
-            if tick % 40 == 0:                           # ~6s: re-sync the whole panel from the radio
-                self._read_panel()
-            tick += 1
-            time.sleep(0.15)
+        dt = self._poll_dt                               # ~25 Hz serial / ~12 Hz LAN
+        panel_n = max(1, round(1.2 / dt))                # freq/mode/active-band cadence (~1.2 s)
+        full_n = max(1, round(6.0 / dt))                 # full-panel re-sync (~6 s)
+        if _WINMM:
+            try: _WINMM.timeBeginPeriod(1)               # accurate short sleeps on Windows
+            except Exception: pass
+        try:
+            next_t = time.perf_counter()
+            while not self._poll_stop.is_set():
+                # TX failsafe (EVERY iteration, never gated behind tick%N): never leave the radio
+                # able to transmit past the time-out — covers latched PTT and VOX (audio-keyed).
+                if self._ptt_deadline and time.monotonic() >= self._ptt_deadline:
+                    if self.state["ptt"]:
+                        self.set_ptt(False)
+                    if self.state.get("vox"):
+                        self.set_rx_func("vox", False)
+                # CW-TX bounded auto-stop: the rig self-keys the message via BK-IN, so the
+                # PTT failsafe doesn't cover it — stop it once the message should be done.
+                if self._cw_deadline and time.monotonic() >= self._cw_deadline:
+                    self.stop_cw()
+                self._write(self._b(0x15, 0x02))         # S-meter (active band) — every tick
+                if self.state["meter"] != "S":           # selected TX meter for the big bar
+                    self._write(self._b(0x15, civ.METER_SUBS[self.state["meter"]]))
+                if tick % panel_n == 0:                  # ~1.2s: catch panel changes
+                    self._write(self._b(0x03))
+                    self._write(self._b(0x04))
+                    if self.state["dual_watch"]:         # is MAIN the operating band?
+                        self._write(self._b(0x07, 0xD2, b"\x00"))
+                if tick % full_n == 0:                   # ~6s: re-sync the whole panel from the radio
+                    self._read_panel()
+                tick += 1
+                next_t += dt                             # absolute-deadline pacing: stable cadence,
+                rem = next_t - time.perf_counter()       # no drift accumulation
+                if rem > 0:
+                    self._poll_stop.wait(rem)            # responsive: returns at once on disconnect
+                else:
+                    next_t = time.perf_counter()         # fell behind -> resync, don't spiral
+        finally:
+            if _WINMM:
+                try: _WINMM.timeEndPeriod(1)
+                except Exception: pass
 
     def _read_panel(self) -> None:
         """Re-read the panel settings so the UI mirrors the radio even when knobs
@@ -739,8 +773,33 @@ class Radio:
             b["mode_name"] = self.state["mode_name"]
             b["filter_name"] = self.state["filter_name"]
 
+    _METER_FIELDS = ("smeter", "smeter_s", "meter_val")
+
+    def _state_sig(self) -> str:
+        """Signature of the state the FULL frame renders, EXCLUDING the fast meter fields
+        (those ride the meter channel). Lets _emit_state skip redundant frames from panel
+        re-reads / scope ticks that didn't actually change anything."""
+        out = {}
+        for k, v in self.state.items():
+            if k in self._METER_FIELDS:
+                continue
+            if isinstance(v, dict):
+                v = {kk: vv for kk, vv in v.items() if kk not in self._METER_FIELDS}
+            out[k] = v
+        return json.dumps(out, sort_keys=True, default=str)
+
     def _emit_state(self) -> None:
         self._mirror_active()
-        if self.on_state:
+        if not self.on_state:
+            return
+        sig = self._state_sig()
+        if sig == self._last_sig:                 # nothing the full frame shows changed -> skip
+            return
+        self._last_sig = sig
+        s = self.state
+        self.on_state({**s, "main": dict(s["main"]), "sub": dict(s["sub"])})
+
+    def _emit_meter(self) -> None:
+        if self.on_meter:
             s = self.state
-            self.on_state({**s, "main": dict(s["main"]), "sub": dict(s["sub"])})
+            self.on_meter(s["meter"], s["meter_val"], s["smeter"], s["smeter_s"])

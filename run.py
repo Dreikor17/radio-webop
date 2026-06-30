@@ -47,6 +47,8 @@ def main() -> None:
         print(f"  Also reachable on all interfaces (LAN / VPN / port-forward) at port {args.port}"
               f" over {scheme}.")
         print("  WARNING: no login — anyone who can reach this port can control the radio (incl. TX).")
+        print("  Secure remote tip: bind --host 127.0.0.1 and front it with 'tailscale serve --bg "
+              f"{args.port}' for tailnet-only HTTPS (mic/TX needs HTTPS). See docs/REMOTE-ACCESS.md.")
     uvicorn.run("backend.server:app", host=args.host, port=args.port,
                 reload=args.reload, log_level="info", **ssl_kw)
 

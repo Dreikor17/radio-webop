@@ -28,7 +28,10 @@
     ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.binaryType = "arraybuffer";
     ws.onmessage = onMessage;
-    ws.onclose = () => setTimeout(connectWS, 1200);
+    ws.onclose = (e) => {
+      if (e.code === 1008) { location.replace("/login"); return; }   // auth required/expired -> sign in
+      setTimeout(connectWS, 1200);
+    };
   }
 
   function send(obj) {
@@ -39,7 +42,9 @@
     if (typeof ev.data === "string") {
       const msg = JSON.parse(ev.data);
       if (msg.type === "state") updateState(msg);
+      else if (msg.type === "meter") updateMeter(msg);
       else if (msg.type === "menu") updateMenu(msg.values || {});
+      else if (msg.type === "host_audio") { if (msg.error) alert("Host audio — " + msg.error); }
       return;
     }
     const tag = new Uint8Array(ev.data, 0, 1)[0];
@@ -77,6 +82,21 @@
   }
 
   // ---- state -> UI ----
+  // Meter render reads the live `state`; driven both by full-state frames and the fast
+  // 'meter' channel (which carries only meter/meter_val/smeter/smeter_s between full frames).
+  function renderMeter() {
+    const s = state || {};
+    const isS = (s.meter || "S") === "S";
+    const mmax = isS ? 240 : (s.meter_max || 255);
+    const mf = $("meterFill"), mv = $("meterVal");
+    if (mf) mf.style.width = Math.min(100, (s.meter_val || 0) / mmax * 100) + "%";
+    if (mv) mv.textContent = isS ? (s.smeter_s || "S0") : (s.meter + " " + (s.meter_val || 0));
+  }
+  function updateMeter(m) {
+    state.meter = m.meter; state.meter_val = m.meter_val;
+    state.smeter = m.smeter; state.smeter_s = m.smeter_s;
+    renderMeter();
+  }
   function updateState(s) {
     const justConnected = !state.connected && s.connected;
     state = s;
@@ -101,11 +121,9 @@
     setInd("mainInd", s, s.active_band !== "sub");
     setInd("subInd", s, s.active_band === "sub");
 
-    // multi-meter (S live; TX meters wired for M3)
-    const isS = (s.meter || "S") === "S";
-    const mmax = isS ? 240 : (s.meter_max || 255);
-    $("meterFill").style.width = Math.min(100, (s.meter_val || 0) / mmax * 100) + "%";
-    $("meterVal").textContent = isS ? (s.smeter_s || "S0") : (s.meter + " " + (s.meter_val || 0));
+    // multi-meter (S live; TX meters wired for M3). The value also arrives on the fast
+    // lightweight 'meter' channel between full-state frames — render via the shared helper.
+    renderMeter();
     setActive(".m-btn", b => b.dataset.meter === (s.meter || "S"));
 
     // RX toggles
@@ -975,12 +993,6 @@
     if (!opt) return "sim";
     return opt.dataset.kind === "serial" ? "serial" : opt.value;
   }
-  function audioSecure() {
-    if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) return true;
-    alert("USB audio needs a secure context (HTTPS or localhost). You're on " + location.protocol + "//" + location.host +
-      " — open the app on the PC the radio is plugged into (http://localhost:8700), or serve it over HTTPS.");
-    return false;
-  }
   function fillDevs(sel, list, kind, withDefault) {
     if (!sel) return;
     const prev = sel.value; sel.innerHTML = "";
@@ -1000,14 +1012,37 @@
     });
     if (prev) sel.value = prev;
   }
+  // Radio RX / Radio TX are sound cards on the HOST (the PC with the radio), so on a serial/USB
+  // radio they're enumerated SERVER-side — a remote browser can't see the host's devices. Mic In
+  // stays the client's microphone. fillHostDevs defaults to the radio's USB CODEC when unset.
+  let hostAudioAvail = true;
+  function fillHostDevs(sel, list, kind) {
+    if (!sel) return;
+    const prev = sel.value; sel.innerHTML = "";
+    if (!list.length) {
+      const o = document.createElement("option"); o.value = "";
+      o.textContent = hostAudioAvail ? "(no " + kind + ")" : "install sounddevice on host";
+      sel.appendChild(o); return;
+    }
+    list.forEach((d) => { const o = document.createElement("option"); o.value = String(d.id); o.textContent = d.name; sel.appendChild(o); });
+    if (prev) sel.value = prev;
+    else { const codec = [...sel.options].find((o) => /codec/i.test(o.textContent)); if (codec) sel.value = codec.value; }
+  }
+  async function loadHostDevices() {
+    try {
+      const j = await (await fetch("/api/audio_devices")).json();
+      hostAudioAvail = !!j.available;
+      fillHostDevs($("rxDev"), j.inputs || [], "host input");
+      fillHostDevs($("micDev"), j.outputs || [], "host output");
+    } catch (_) { hostAudioAvail = false; fillHostDevs($("rxDev"), [], "host input"); fillHostDevs($("micDev"), [], "host output"); }
+  }
   async function loadAudioDevices() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-    let devs = [];
-    try { devs = await navigator.mediaDevices.enumerateDevices(); } catch (_) { return; }
-    const ins = devs.filter((d) => d.kind === "audioinput");
-    fillDevs($("rxDev"), ins, "Input");                                  // Radio RX (USB CODEC input)
-    fillDevs($("micInDev"), ins, "Mic", true);                           // computer's mic (defaults to OS default, not the CODEC)
-    fillDevs($("micDev"), devs.filter((d) => d.kind === "audiooutput"), "Output");   // Radio TX (USB CODEC output)
+    if (currentTransportKind() === "serial") await loadHostDevices();    // Radio RX/TX = host sound cards
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      let devs = [];
+      try { devs = await navigator.mediaDevices.enumerateDevices(); } catch (_) { devs = []; }
+      fillDevs($("micInDev"), devs.filter((d) => d.kind === "audioinput"), "Mic", true);   // Mic In = this client's mic
+    }
     applyWantedDevs();                              // restore the remembered Radio RX / Radio TX / Mic In for this radio
   }
   function applyWantedDevs() {
@@ -1020,35 +1055,6 @@
     navigator.mediaDevices.addEventListener("devicechange", loadAudioDevices);
   }
 
-  // serial RX: capture the radio's USB-audio input -> VOL gain -> speakers
-  let rxStream = null, rxSrcNode = null;
-  async function startSerialRx() {
-    if (!audioSecure()) return false;
-    try {
-      const id = $("rxDev").value;
-      rxStream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    } catch (e) { alert("Couldn't open that RX audio device: " + e); return false; }
-    ensureAudioCtx();
-    rxSrcNode = audioCtx.createMediaStreamSource(rxStream);
-    rxSrcNode.connect(rxBus);
-    if (afEligible()) startAfScope(rxSrcNode);   // FT-991A etc.: draw an audio spectrum from RX
-    loadAudioDevices();                  // labels are populated now permission is granted
-    return true;
-  }
-  function stopSerialRx() {
-    stopAfScope();
-    if (rxSrcNode) { try { rxSrcNode.disconnect(); } catch (_) {} rxSrcNode = null; }
-    if (rxStream) { rxStream.getTracks().forEach((t) => t.stop()); rxStream = null; }
-    if (afEligible() && !blanked) {              // back to the static band-plan view
-      scope.showStatic(state.freq, 200000);
-      updateScopeLabels(scope.meta);
-    }
-  }
-
-  // serial mic: capture the mic and play it to the chosen OUTPUT device (the
-  // radio's USB CODEC). Safe: this never keys TX — the radio transmits only when
-  // you press its PTT with its MOD source set to USB.
   // Clearer message for the failure modes the Mic In deviceId constraint can raise.
   function micErr(e) {
     const n = e && e.name;
@@ -1058,42 +1064,6 @@
       return "The microphone is in use by another app and can't be opened.\n(" + e + ")";
     return "Microphone access denied: " + e;
   }
-  let micStreamSerial = null, micElSerial = null, micMeterSrc = null, micMeterRAF = 0;
-  async function startSerialMic() {
-    if (!audioSecure()) return false;
-    try {
-      const micId = $("micInDev") ? $("micInDev").value : "";
-      micStreamSerial = await navigator.mediaDevices.getUserMedia(
-        { audio: { deviceId: micId ? { exact: micId } : undefined, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    } catch (e) { alert(micErr(e)); return false; }
-    micElSerial = new Audio();
-    micElSerial.srcObject = micStreamSerial;
-    const outId = $("micDev").value;
-    if (outId && micElSerial.setSinkId) { try { await micElSerial.setSinkId(outId); } catch (_) {} }
-    try { await micElSerial.play(); } catch (_) {}
-    ensureAudioCtx();                    // tap the same stream for the level meter
-    micMeterSrc = audioCtx.createMediaStreamSource(micStreamSerial);
-    const an = audioCtx.createAnalyser(); an.fftSize = 512; micMeterSrc.connect(an);
-    const data = new Uint8Array(an.fftSize), ml = $("micLevel");
-    const loop = () => {
-      an.getByteTimeDomainData(data);
-      let peak = 0;
-      for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > peak) peak = v; }
-      if (ml) ml.style.width = Math.min(100, Math.round(Math.sqrt(peak) * 100)) + "%";
-      micMeterRAF = requestAnimationFrame(loop);
-    };
-    loop();
-    loadAudioDevices();
-    return true;
-  }
-  function stopSerialMic() {
-    if (micMeterRAF) { cancelAnimationFrame(micMeterRAF); micMeterRAF = 0; }
-    if (micMeterSrc) { try { micMeterSrc.disconnect(); } catch (_) {} micMeterSrc = null; }
-    if (micElSerial) { try { micElSerial.pause(); micElSerial.srcObject = null; } catch (_) {} micElSerial = null; }
-    if (micStreamSerial) { micStreamSerial.getTracks().forEach((t) => t.stop()); micStreamSerial = null; }
-    const ml = $("micLevel"); if (ml) ml.style.width = "0%";
-  }
-
   // ---- audio (AF) spectrum from RX, for radios with no CAT band scope (FT-991A) ----
   // FFT the RX audio and feed the existing spectrum + waterfall. Audio Hz is mapped
   // to RF by the mode's sideband (USB: dial+af, LSB: dial-af) so the labels, tuned
@@ -1160,25 +1130,27 @@
   // stop every audio path + reset the buttons (on radio change / disconnect)
   function stopAllAudio() {
     audioOn = false;
-    stopSerialRx(); stopSerialMic(); stopMic(); stopAfScope();
+    if (currentTransportKind() === "serial") { send({ action: "host_rx", on: false }); send({ action: "host_tx", on: false }); }
+    stopMic(); stopAfScope();
     $("audioBtn").classList.remove("active");
     $("micBtn").classList.remove("on");
   }
 
-  // re-route live if the device picker changes while running. Sync the want* cache FIRST so the
-  // restart's loadAudioDevices() -> applyWantedDevs() restores the NEW pick, not the stale saved one.
+  // re-route live if a picker changes while running. Sync the want* cache first so the restart's
+  // applyWantedDevs() keeps the NEW pick. Radio RX/TX re-point the HOST capture/playback over WS.
   if ($("rxDev")) $("rxDev").addEventListener("change", () => {
     wantRxDev = $("rxDev").value || null; saveConn();
-    if (rxSrcNode) { stopSerialRx(); startSerialRx(); }
+    if (currentTransportKind() === "serial" && $("audioBtn").classList.contains("active") && $("rxDev").value)
+      send({ action: "host_rx", on: true, device: +$("rxDev").value });
   });
-  if ($("micDev")) $("micDev").addEventListener("change", async () => {
+  if ($("micDev")) $("micDev").addEventListener("change", () => {
     wantMicDev = $("micDev").value || null; saveConn();
-    if (micElSerial && micElSerial.setSinkId) { try { await micElSerial.setSinkId($("micDev").value); } catch (_) {} }
+    if (currentTransportKind() === "serial" && $("micBtn").classList.contains("on") && $("micDev").value)
+      send({ action: "host_tx", on: true, device: +$("micDev").value });
   });
   if ($("micInDev")) $("micInDev").addEventListener("change", () => {
     wantMicInDev = $("micInDev").value || null; saveConn();
-    if (micStreamSerial) { stopSerialMic(); startSerialMic(); }   // COM mic capture -> re-open on the new input
-    else if (micOn) { stopMic(); startMic(); }                    // LAN mic capture -> re-open on the new input
+    if (micOn) { stopMic(); startMic(); }                         // re-open the client mic on the new input
   });
 
   // ---- TX mic (capture -> 16 kHz mono s16le -> server -> radio) ----
@@ -1230,25 +1202,118 @@
     const ml = $("micLevel"); if (ml) ml.style.width = "0%";
   }
 
-  $("audioBtn").onclick = async () => {
-    if ($("audioBtn").classList.contains("active")) {   // turn RX off (whichever path)
-      audioOn = false; stopSerialRx();
+  $("audioBtn").onclick = () => {
+    const serial = currentTransportKind() === "serial";
+    if ($("audioBtn").classList.contains("active")) {   // RX off
+      if (serial) send({ action: "host_rx", on: false });
+      audioOn = false; stopAfScope();
       $("audioBtn").classList.remove("active");
-    } else {
-      const ok = currentTransportKind() === "serial" ? await startSerialRx() : (startAudio(), true);
-      if (ok) $("audioBtn").classList.add("active");
+    } else {                                            // RX on
+      if (serial) {
+        const dev = $("rxDev") ? $("rxDev").value : "";
+        if (!dev) { alert("Pick the radio's RX sound card on the host computer (Radio RX)."); return; }
+        send({ action: "host_rx", on: true, device: +dev });
+      }
+      startAudio();                                     // play the WS PCM (host capture, or LAN radio)
+      if (afEligible()) startAfScope(rxBus);            // FT-991A etc.: AF spectrum tapped off the RX bus
+      $("audioBtn").classList.add("active");
     }
   };
   $("micBtn").onclick = async () => {
-    if ($("micBtn").classList.contains("on")) {         // turn mic off (whichever path)
-      stopMic(); stopSerialMic();
+    const serial = currentTransportKind() === "serial";
+    if ($("micBtn").classList.contains("on")) {         // mic off
+      if (serial) send({ action: "host_tx", on: false });
+      stopMic();
       $("micBtn").classList.remove("on");
-    } else {
-      const ok = currentTransportKind() === "serial" ? await startSerialMic() : await startMic();
+    } else {                                            // mic on
+      if (serial) {
+        const dev = $("micDev") ? $("micDev").value : "";
+        if (!dev) { alert("Pick the radio's TX sound card on the host computer (Radio TX)."); return; }
+        send({ action: "host_tx", on: true, device: +dev });
+      }
+      const ok = await startMic();                      // capture the CLIENT mic -> WS -> server -> host TX card
       if (ok) $("micBtn").classList.add("on");
+      else if (serial) send({ action: "host_tx", on: false });
     }
   };
   $("vol").oninput = (e) => { if (audioGain) audioGain.gain.value = (+e.target.value) / 100; };
+
+  // ---- remote access setup (Tailscale) ----
+  (function () {
+    const modal = $("remoteModal"), body = $("remoteBody");
+    if (!modal || !body) return;
+    const E = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    async function render() {
+      body.innerHTML = '<p class="rm-hint">Checking…</p>';
+      let s;
+      try { s = await (await fetch("/api/remote_status")).json(); }
+      catch (_) { body.innerHTML = '<p class="rm-bad">Could not read remote status.</p>'; return; }
+      const ts = s.tailscale || {}, local = s.local, port = s.port || 8700;
+      let h = '<section class="rm-why"><b>Why HTTPS?</b> Browsers only allow microphone access over a '
+        + 'secure (HTTPS) connection. Listening and full radio control work over plain HTTP, but to '
+        + '<b>transmit phone/SSB with your mic remotely you need HTTPS</b>. Tailscale provides it '
+        + 'automatically and keeps access private to your own devices — no port&#8209;forwarding.</section>';
+      h += '<section class="rm-status">';
+      if (!ts.installed) {
+        h += '<p class="rm-bad">Tailscale isn’t installed on this PC.</p><p>'
+          + '<a href="https://tailscale.com/download" target="_blank" rel="noopener">Download Tailscale</a>, '
+          + 'install it, sign in, then reopen this dialog.</p>';
+      } else if (!ts.running) {
+        h += '<p class="rm-bad">Tailscale is installed but not signed in.</p>'
+          + '<p>Open the Tailscale app on this PC and sign in, then reopen this dialog.</p>';
+      } else if (ts.serve_running && ts.url) {
+        h += '<p class="rm-good">✓ Remote access is ON — tailnet&#8209;only, HTTPS.</p>'
+          + '<div class="rm-url"><code id="rmUrl">' + E(ts.url) + '</code>'
+          + '<button class="ctl-btn" id="rmCopy" type="button">Copy</button></div>'
+          + '<p class="rm-hint">Open that address from any device signed into your tailnet.</p>'
+          + (local ? '<button class="ctl-btn" id="rmOff" type="button">Turn off remote access</button>' : '');
+      } else if (ts.url) {
+        h += '<p class="rm-good">Tailscale is ready (<code>' + E(ts.url) + '</code>).</p>'
+          + (local ? '<button class="ctl-btn primary" id="rmOn" type="button">Turn on secure remote access</button>'
+                   + '<p class="rm-hint">Runs <code>tailscale serve</code> so your address serves HTTPS to the radio.</p>'
+                   : '<p class="rm-hint">Open this on the host PC to turn remote access on.</p>');
+      }
+      h += '</section>';
+      h += '<section class="rm-steps"><h3>How it works</h3><ol>'
+        + '<li>Install Tailscale on this PC <b>and</b> the device you operate from; sign both into the same account.</li>'
+        + '<li>In the Tailscale admin console → <b>DNS</b>, enable <b>MagicDNS</b> and <b>HTTPS Certificates</b>.</li>'
+        + '<li>Turn on secure remote access above (or run <code>tailscale serve --bg ' + port + '</code>).</li>'
+        + '<li>Open your <code>*.ts.net</code> address from any of your devices — HTTPS, mic and all.</li></ol>'
+        + '<p class="rm-hint">Tip: launch the server with <code>--host 127.0.0.1</code> so only Tailscale can reach it.</p></section>';
+      h += '<section class="rm-pw"><h3>Password ' + (s.auth_enabled ? '<span class="rm-on">on</span>' : '<span class="rm-off">optional</span>') + '</h3>';
+      if (!local) {
+        h += '<p class="rm-hint">Change the password on the host PC (open <code>http://localhost:' + port + '</code> there).</p>';
+      } else if (s.auth_enabled) {
+        h += '<p>A login password is required for everyone reaching the server (including this host).</p>'
+          + '<button class="ctl-btn" id="rmPwClear" type="button">Remove password</button>';
+      } else {
+        h += '<p>Your tailnet already limits access to your own devices. Add a password too if you share your tailnet with others.</p>'
+          + '<div class="rm-pwset"><input id="rmPw" type="password" placeholder="new password (min 6 chars)" autocomplete="new-password">'
+          + '<button class="ctl-btn" id="rmPwSet" type="button">Set password</button></div>';
+      }
+      h += '<div class="rm-msg" id="rmMsg"></div></section>';
+      body.innerHTML = h;
+      const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
+      on("rmCopy", () => { const u = $("rmUrl"); if (u && navigator.clipboard) navigator.clipboard.writeText(u.textContent); });
+      on("rmOn", () => postJson("/api/tailscale_serve", {}));
+      on("rmOff", () => postJson("/api/tailscale_serve_off", {}));
+      on("rmPwClear", () => postJson("/api/set_password", { clear: true }));
+      on("rmPwSet", () => postJson("/api/set_password",
+        { password: ($("rmPw") || {}).value || "", allowed_hosts: ts.magicdns ? [ts.magicdns] : [] }));
+    }
+    async function postJson(url, obj) {
+      const msg = $("rmMsg");
+      try {
+        const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) });
+        const j = await r.json().catch(() => ({}));
+        if (j && j.ok === false && j.error) { if (msg) msg.textContent = j.error; return; }
+      } catch (_) { if (msg) msg.textContent = "Request failed."; return; }
+      render();
+    }
+    if ($("remoteBtn")) $("remoteBtn").onclick = () => { modal.hidden = false; render(); };
+    if ($("remoteClose")) $("remoteClose").onclick = () => { modal.hidden = true; };
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.hidden = true; });
+  })();
 
   // ---- update check (latest GitHub release) ----
   (function () {

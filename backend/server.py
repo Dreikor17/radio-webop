@@ -30,12 +30,15 @@ from pathlib import Path
 from typing import Optional, Set
 
 from starlette.applications import Starlette
-from starlette.responses import FileResponse, HTMLResponse, JSONResponse
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import (FileResponse, HTMLResponse, JSONResponse,
+                                 PlainTextResponse, RedirectResponse)
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from . import __version__, civ, profiles
+from . import __version__, auth, civ, hostaudio, profiles, tailscale
 from .lan import LanTransport
 from .radio import Radio
 from .transport import SerialTransport, SimTransport, YaesuSimTransport, available_ports
@@ -145,10 +148,23 @@ class Hub:
         # high-rate state frames.
         self._push(("text", json.dumps({"type": "menu", "values": values})))
 
+    def broadcast_host_audio(self, **kw) -> None:
+        # host sound-card audio status/errors (separate from radio state)
+        self._push(("text", json.dumps({"type": "host_audio", **kw})))
+
+    def broadcast_meter(self, meter: str, val: int, smeter: int, smeter_s: str) -> None:
+        # the meter changes ~every poll; keep it OFF the heavy full-state frame so it can
+        # fan out fast on its own lightweight channel (like scope / menu).
+        self._push(("text", json.dumps({"type": "meter", "meter": meter, "meter_val": val,
+                                        "smeter": smeter, "smeter_s": smeter_s})))
+
 
 AUDIO_RATE = 16000
 
 hub = Hub()
+# Host sound-card audio: for a serial/USB radio reached remotely, the radio's RX/TX audio is
+# on the HOST's sound card (not the browser's). Capture it server-side and stream over the WS.
+host_audio = hostaudio.HostAudio(hub.broadcast_audio)
 
 # One control stack per protocol; the active one is bound to `radio` and is
 # swapped on connect based on the chosen profile's protocol.
@@ -161,6 +177,7 @@ def _bind_radio(r) -> None:
     r.on_scope = hub.broadcast_scope
     r.on_audio = hub.broadcast_audio
     r.on_menu = hub.broadcast_menu
+    r.on_meter = hub.broadcast_meter
 
 
 _bind_radio(radio)
@@ -235,6 +252,7 @@ async def api_connect(request):
     body = await request.json()
     kind = body.get("transport", "sim")
     try:
+        host_audio.stop()                   # drop any prior host sound-card streams on (re)connect
         profile = profiles.PROFILES.get(body.get("radio"), radio.profile)
         is_yaesu = getattr(profile, "protocol", "civ") == "yaesu"
         # route to the matching protocol stack (Icom CI-V vs Yaesu CAT)
@@ -266,12 +284,26 @@ async def api_connect(request):
 
 
 async def api_disconnect(request):
+    host_audio.stop()                       # release the host sound cards with the radio
     radio.disconnect()
     return JSONResponse({"ok": True})
 
 
+async def api_audio_devices(request):
+    """Host (server-side) sound cards, for a serial/USB radio's Radio RX / Radio TX pickers."""
+    return JSONResponse(hostaudio.list_devices())
+
+
 # -- WebSocket ---------------------------------------------------------------
 async def ws_endpoint(ws: WebSocket):
+    # The HTTP middleware doesn't see WS upgrades — gate here. Origin/Host blocks cross-site
+    # WS hijacking + DNS-rebinding; the session cookie gates remote clients (loopback exempt).
+    host = ws.headers.get("host")
+    if not auth.host_ok(host) or not auth.origin_ok(ws.headers.get("origin"), host):
+        await ws.close(code=1008); return
+    if auth.auth_enabled() and not auth.local_exempt(ws.client.host if ws.client else None) \
+            and not auth.valid_session(ws.cookies.get(auth.COOKIE_NAME)):
+        await ws.close(code=1008); return
     await ws.accept()
     q = hub.add()
     await ws.send_text(json.dumps({"type": "state", **radio.state}))
@@ -296,12 +328,18 @@ async def ws_endpoint(ws: WebSocket):
             if msg.get("text") is not None:
                 _handle_cmd(json.loads(msg["text"]))
             elif msg.get("bytes") is not None:
-                radio.write_audio(msg["bytes"])      # mic PCM (16-bit LE mono)
+                if host_audio.tx_device is not None:
+                    host_audio.write(msg["bytes"])   # serial radio: mic -> host TX sound card
+                else:
+                    radio.write_audio(msg["bytes"])  # LAN: mic PCM -> the radio's modulator
     except WebSocketDisconnect:
         pass
     finally:
         send_task.cancel()
         hub.remove(q)
+        host_audio.stop_tx()                 # this client's mic feed ends -> stop playing to the radio
+        if not hub.clients:                  # nobody left listening -> stop capturing the host RX card
+            host_audio.stop_rx()
         # safety: PTT is a single shared radio state with one keyer, so the
         # disconnecting client may be the one transmitting. Unkey on ANY client
         # drop while keyed — not just the last one — since the client-side unkey
@@ -379,6 +417,16 @@ def _handle_cmd(cmd: dict) -> None:
             radio.read_menu_group(str(cmd["group"]))
         elif action == "menu_write":
             radio.set_menu(int(cmd["num"]), cmd["value"])
+        elif action == "host_rx":            # capture a host sound card -> stream to the browser
+            try:
+                host_audio.start_rx(cmd["device"]) if cmd.get("on") else host_audio.stop_rx()
+            except Exception as exc:
+                host_audio.stop_rx(); hub.broadcast_host_audio(error="Radio RX audio — " + str(exc))
+        elif action == "host_tx":            # play browser-mic PCM -> a host sound card (the radio)
+            try:
+                host_audio.start_tx(cmd["device"]) if cmd.get("on") else host_audio.stop_tx()
+            except Exception as exc:
+                host_audio.stop_tx(); hub.broadcast_host_audio(error="Radio TX audio — " + str(exc))
     except (KeyError, ValueError, TypeError):
         pass
 
@@ -392,15 +440,147 @@ async def _lifespan(app):
     yield
 
 
+# -- access control: shared-password auth + Origin/Host (CSWSH + DNS-rebinding) ----------
+_AUTH_EXEMPT = {"/login", "/api/login", "/api/auth_status"}
+_login_hits: dict = {}                  # ip -> [recent attempt times] (brute-force brake)
+
+
+def _client_ip(req) -> str:
+    return req.client.host if req.client else ""
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.monotonic()
+    hits = [t for t in _login_hits.get(ip, []) if now - t < 300]   # 5-min window
+    _login_hits[ip] = hits
+    return len(hits) >= 10              # >10 attempts / 5 min
+
+
+class Gate(BaseHTTPMiddleware):
+    """Origin/Host allowlist on every request (CSWSH + DNS-rebinding), plus the shared-password
+    session gate on all routes except loopback + the login endpoints."""
+    async def dispatch(self, request, call_next):
+        host = request.headers.get("host")
+        if not auth.host_ok(host):
+            return PlainTextResponse("Bad Host header.", status_code=403)
+        if request.method not in ("GET", "HEAD"):           # block cross-site state changes
+            if not auth.origin_ok(request.headers.get("origin"), host):
+                return PlainTextResponse("Cross-site request blocked.", status_code=403)
+        if auth.auth_enabled() and not auth.local_exempt(_client_ip(request)) \
+                and request.url.path not in _AUTH_EXEMPT:
+            if not auth.valid_session(request.cookies.get(auth.COOKIE_NAME)):
+                if request.url.path.startswith("/api/"):
+                    return JSONResponse({"error": "auth required"}, status_code=401)
+                return RedirectResponse("/login", status_code=303)
+        return await call_next(request)
+
+
+def _set_session_cookie(resp, request) -> None:
+    resp.set_cookie(auth.COOKIE_NAME, auth.make_session(), max_age=auth.SESSION_TTL,
+                    httponly=True, samesite="lax", secure=request.url.scheme == "https", path="/")
+
+
+async def login_page(request):
+    return FileResponse(str(FRONTEND / "login.html"))
+
+
+async def api_login(request):
+    ip = _client_ip(request)
+    if _rate_limited(ip):
+        return JSONResponse({"ok": False, "error": "too many attempts — wait a few minutes"}, status_code=429)
+    _login_hits.setdefault(ip, []).append(time.monotonic())
+    body = await request.json()
+    if auth.verify_password(str(body.get("password", ""))):
+        _login_hits[ip] = []
+        resp = JSONResponse({"ok": True})
+        _set_session_cookie(resp, request)
+        return resp
+    return JSONResponse({"ok": False, "error": "wrong password"}, status_code=401)
+
+
+async def api_logout(request):
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.COOKIE_NAME, path="/")
+    return resp
+
+
+async def api_auth_status(request):
+    local = auth.is_local(_client_ip(request))
+    return JSONResponse({"enabled": auth.auth_enabled(), "local": local,
+                         "authed": local or auth.valid_session(request.cookies.get(auth.COOKIE_NAME))})
+
+
+async def api_set_password(request):
+    # Setting / clearing the shared password is the host operator's job — local only.
+    if not auth.is_local(_client_ip(request)):
+        return JSONResponse({"ok": False, "error": "set the password on the host PC"}, status_code=403)
+    body = await request.json()
+    if body.get("clear"):
+        auth.clear_password()
+        return JSONResponse({"ok": True, "enabled": False})
+    pw = str(body.get("password", ""))
+    if len(pw) < 6:
+        return JSONResponse({"ok": False, "error": "use at least 6 characters"}, status_code=400)
+    auth.set_password(pw)
+    for h in (body.get("allowed_hosts") or []):
+        auth.add_allowed_host(str(h))
+    resp = JSONResponse({"ok": True, "enabled": True})
+    _set_session_cookie(resp, request)         # keep the operator signed in after setting it
+    return resp
+
+
+def _app_port(request) -> int:
+    return request.url.port or 8700
+
+
+async def api_remote_status(request):
+    port = _app_port(request)
+    return JSONResponse({"tailscale": tailscale.status(port), "auth_enabled": auth.auth_enabled(),
+                         "behind_proxy": auth.behind_proxy(), "local": auth.is_local(_client_ip(request)),
+                         "port": port})
+
+
+async def api_tailscale_serve(request):
+    if not auth.is_local(_client_ip(request)):
+        return JSONResponse({"ok": False, "error": "set this up from the host PC's own browser"}, status_code=403)
+    port = _app_port(request)
+    code, out, err = tailscale.serve_on(port)
+    st = tailscale.status(port)
+    if st.get("magicdns"):
+        auth.add_allowed_host(st["magicdns"])       # so the Origin/Host gate accepts the *.ts.net name
+    auth.set_behind_proxy(True)
+    if code != 0:
+        return JSONResponse({"ok": False, "error": (err or out or "tailscale serve failed").strip(),
+                             "tailscale": st}, status_code=400)
+    return JSONResponse({"ok": True, "tailscale": st})
+
+
+async def api_tailscale_serve_off(request):
+    if not auth.is_local(_client_ip(request)):
+        return JSONResponse({"ok": False, "error": "do this from the host PC's own browser"}, status_code=403)
+    tailscale.serve_off()
+    auth.set_behind_proxy(False)
+    return JSONResponse({"ok": True, "tailscale": tailscale.status(_app_port(request))})
+
+
 routes = [
     Route("/", index),
+    Route("/login", login_page),
+    Route("/api/login", api_login, methods=["POST"]),
+    Route("/api/logout", api_logout, methods=["POST"]),
+    Route("/api/auth_status", api_auth_status),
+    Route("/api/set_password", api_set_password, methods=["POST"]),
+    Route("/api/remote_status", api_remote_status),
+    Route("/api/tailscale_serve", api_tailscale_serve, methods=["POST"]),
+    Route("/api/tailscale_serve_off", api_tailscale_serve_off, methods=["POST"]),
     Route("/api/radios", api_radios),
     Route("/api/version", api_version),
     Route("/api/ports", api_ports),
+    Route("/api/audio_devices", api_audio_devices),
     Route("/api/connect", api_connect, methods=["POST"]),
     Route("/api/disconnect", api_disconnect, methods=["POST"]),
     WebSocketRoute("/ws", ws_endpoint),
     Mount("/static", StaticFiles(directory=str(FRONTEND)), name="static"),
 ]
 
-app = Starlette(debug=False, routes=routes, lifespan=_lifespan)
+app = Starlette(debug=False, routes=routes, middleware=[Middleware(Gate)], lifespan=_lifespan)

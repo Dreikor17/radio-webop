@@ -3,6 +3,36 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.16] — 2026-06-30
+
+Remote operation: host‑side sound‑card audio for serial radios, a much faster meter, and a
+secure remote‑access setup built around Tailscale (with password + anti‑hijacking defenses).
+
+### Added
+- **Host sound‑card audio for serial/USB radios over the network.** When a serial radio (e.g.
+  FT‑991A) is operated remotely, its RX/TX audio lives on the **host** PC's sound card, which a
+  remote browser can't see. The server now captures the chosen host **Radio RX** card and streams
+  it to the browser, and plays the browser mic to the host **Radio TX** card — the same 16 kHz PCM
+  path the IC‑9700 LAN audio uses. Radio RX/TX pickers list the host's devices (auto‑select the USB
+  CODEC); **Mic In** stays the client mic. Optional `sounddevice` dependency.
+- **Secure remote‑access setup (Tailscale).** A **🌐 Remote** dialog explains *why* HTTPS is needed
+  (the mic needs a secure context), detects Tailscale, turns on `tailscale serve` for you (tailnet‑
+  only HTTPS, no port‑forward, CGNAT‑friendly), shows your `*.ts.net` address, and walks through the
+  setup. See [docs/REMOTE‑ACCESS.md](docs/REMOTE-ACCESS.md).
+- **App‑layer auth.** An optional shared password gates remote sessions (the host on loopback is
+  exempt); scrypt‑hashed, stdlib HMAC session cookie. A login page; the app bounces there if a remote
+  session expires. Behind a reverse proxy, loopback is *not* treated as trusted (so the password
+  actually gates tailnet peers).
+- **Cross‑site/DNS‑rebinding defense.** An Origin/Host allowlist on the WebSocket and state‑changing
+  routes blocks a page you merely visit from keying your transmitter — enforced even with no password.
+
+### Changed
+- **Meter polls much faster + lighter.** The S‑meter / TX meters now ride a dedicated lightweight WS
+  channel at ~25 Hz on Icom serial (~12 Hz on the FT‑991A, CAT‑bound) instead of ~6.7 Hz, with a
+  Windows hi‑res‑timer for a stable cadence. Full‑state frames are de‑duplicated, so the higher meter
+  rate doesn't flood the connection (panel re‑reads no longer re‑broadcast unchanged state). The
+  transmit failsafes are unchanged (absolute monotonic deadlines, checked every loop).
+
 ## [0.2.15] — 2026-06-29
 
 Three-input audio device routing, a far sharper WSJT-style waterfall, and a CW decoder that

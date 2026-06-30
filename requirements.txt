@@ -2,3 +2,4 @@ starlette>=0.37
 uvicorn>=0.27
 websockets>=12
 pyserial>=3.5
+sounddevice>=0.4   # host-side sound-card audio for serial/USB radios operated remotely

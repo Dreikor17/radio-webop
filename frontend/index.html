@@ -34,9 +34,20 @@
       </span>
       <button id="connectBtn" class="ctl-btn primary">Connect</button>
       <button id="disconnectBtn" class="ctl-btn">Disconnect</button>
+      <button id="remoteBtn" class="ctl-btn" title="Set up secure remote access">🌐 Remote</button>
     </div>
   </div>
 </header>
+
+<div class="modal-overlay" id="remoteModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Remote access</h2>
+      <button class="modal-x" id="remoteClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="remoteBody"></div>
+  </div>
+</div>
 
 <main class="radio">
   <!-- ===================== RIGHT: VFO readout + meter + waterfall ===================== -->
@@ -83,9 +94,9 @@
           <button class="key ptt" id="micBtn">🎤 Mic</button>
         </div>
         <div class="usb-audio" id="audioDevs" hidden>
-          <label class="sl sl-dev usb-only"><span>Radio RX</span><select id="rxDev" aria-label="Radio RX — input device: the radio's USB-CODEC receive audio you hear" title="Radio's USB-CODEC audio input — the receive audio you hear"></select></label>
-          <label class="sl sl-dev usb-only"><span>Radio TX</span><select id="micDev" aria-label="Radio TX — output device: your mic is routed here to reach the radio's modulator" title="Radio's USB-CODEC audio output — your mic is routed here to reach the modulator"></select></label>
-          <label class="sl sl-dev"><span>Mic In</span><select id="micInDev" aria-label="Mic In — input device: your computer's microphone, captured for transmit" title="Your computer's microphone — captured for transmit"></select></label>
+          <label class="sl sl-dev usb-only"><span>Radio RX</span><select id="rxDev" aria-label="Radio RX — the radio's receive sound card on the host computer; captured there and streamed to you" title="The radio's RX sound card ON THE HOST (its USB-CODEC input) — captured on the host and streamed to your browser"></select></label>
+          <label class="sl sl-dev usb-only"><span>Radio TX</span><select id="micDev" aria-label="Radio TX — the radio's transmit sound card on the host computer; your mic is played to it" title="The radio's TX sound card ON THE HOST (its USB-CODEC output) — your mic is sent to the host and played here to reach the modulator"></select></label>
+          <label class="sl sl-dev"><span>Mic In</span><select id="micInDev" aria-label="Mic In — your microphone on this computer, captured for transmit" title="Your microphone on THIS computer — captured and sent to the radio for transmit"></select></label>
         </div>
         <div class="mic-meter"><span>MIC</span><div class="mic-bar"><div class="mic-bar-fill" id="micLevel"></div></div></div>
         <label class="sl"><span>VOL</span><input type="range" min="0" max="100" id="vol" value="80"></label>

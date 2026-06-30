@@ -64,6 +64,20 @@ Then open <http://localhost:8700>. Pick your **radio model**, choose a transport
   Note: HTTPS sent to a plain-HTTP instance is rejected as an invalid request — match
   the scheme to how the server is running.
 
+  **Recommended for remote use: Tailscale Serve.** Because there is **no login**,
+  the safest easy path is to keep the app on loopback (`--host 127.0.0.1`) and front
+  it with a tailnet-only HTTPS reverse proxy that auto-provisions a `*.ts.net`
+  certificate (which also satisfies the mic/TX secure-context requirement):
+
+  ```
+  python run.py --host 127.0.0.1 --no-browser
+  tailscale serve --bg 8700
+  ```
+
+  Then open the printed `https://<host>.ts.net/` URL from any tailnet device — no
+  firewall holes, no self-signed cert. Do **not** use `tailscale funnel` (public
+  internet) with this no-auth app. See [docs/REMOTE-ACCESS.md](docs/REMOTE-ACCESS.md).
+
 ## Architecture
 
 ```

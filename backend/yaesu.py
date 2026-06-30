@@ -18,6 +18,7 @@ audio with no explicit PTT). The TX; poll keeps the keyed state in sync.
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from typing import Optional
@@ -99,6 +100,8 @@ class YaesuRadio:
         self._rxbuf = ""
         self.on_state = None
         self.on_scope = None          # never used (no scope over CAT)
+        self.on_meter = None          # fast meter channel (separate from full state)
+        self._last_sig = None         # last non-meter state sig (dedup full frames)
         self.on_audio = None
         self.on_menu = None
         self._menu_index = {}     # num -> MenuItem, built on connect
@@ -236,6 +239,7 @@ class YaesuRadio:
             self._handle_ex_reply(m)     # SET-menu reply -> separate menu channel, not state
             return
         changed = True
+        meter_changed = False            # SM0 / RM ride the lightweight meter channel
         if m.startswith("FA") and len(m) >= 11 and m[2:11].isdigit():
             self._set_freq_state(int(m[2:11]))
         elif m.startswith("MD0") and len(m) >= 4:
@@ -246,13 +250,12 @@ class YaesuRadio:
             else:
                 changed = False
         elif m.startswith("SM0") and len(m) >= 6 and m[3:6].isdigit():
-            self._set_smeter(int(m[3:6]))
+            self._set_smeter(int(m[3:6])); meter_changed = True; changed = False
         elif m.startswith("RM") and len(m) >= 6 and m[2:6].isdigit():   # READ METER (TX meters)
             key = YAESU_METER_BY_P1.get(m[2])
             if key and self.state.get("meter") == key:
-                self.state["meter_val"] = min(255, int(m[3:6]))
-            else:
-                changed = False
+                self.state["meter_val"] = min(255, int(m[3:6])); meter_changed = True
+            changed = False
         elif m.startswith("PC") and len(m) >= 5 and m[2:5].isdigit():
             self.state["rfpwr"] = _unscale(int(m[2:5]), self._max_watts())
         elif m.startswith("AG0") and len(m) >= 6 and m[3:6].isdigit():
@@ -302,6 +305,8 @@ class YaesuRadio:
             changed = False
         if changed:
             self._emit_state()
+        elif meter_changed:
+            self._emit_meter()           # meter-only: tiny frame, no full-state re-serialize
 
     def _set_freq_state(self, hz: int) -> None:
         self.state["freq"] = hz
@@ -327,40 +332,51 @@ class YaesuRadio:
                  "NB0;", "NL0;", "NR0;", "RL0;", "BC0;", "BP00;",
                  "PA0;", "RA0;", "LK;", "NA0;", "FT;", "RT;", "AC;")
 
+    _CMD_DT = 0.02                               # inter-command pacing; 0.02 is the FT-991A CAT floor
+
     def _poll(self) -> None:
+        # The FT-991A is CAT-bound: every read is a query/reply round-trip with a small
+        # inter-command gap. So poll the METER (SM0 + the selected TX meter) every cycle, send
+        # freq/mode/PTT a few times a second, and round-robin ONE panel setting per cycle so a
+        # full-panel refresh never blocks the meter for a long burst. ~12 Hz S-meter.
         cyc = 0
         while not self._poll_stop.is_set():
-            # stuck-TX failsafe: never leave the radio keyed past the time-out.
+            # stuck-TX failsafe (every cycle): never leave the radio keyed past the time-out.
             if (self._ptt_deadline and time.monotonic() >= self._ptt_deadline
                     and self.state.get("ptt")):
                 self.set_ptt(False)
-            # CW-TX indicator auto-clear: the rig's keyer plays a bounded message and
-            # returns to RX on its own; clear the 'transmitting' flag once it's done.
+            # CW-TX indicator auto-clear: the rig's keyer plays a bounded message and returns
+            # to RX on its own; clear the 'transmitting' flag once it's done.
             if self._cw_deadline and time.monotonic() >= self._cw_deadline:
                 self.stop_cw()
-            for cmd in ("FA;", "MD0;", "SM0;", "TX;"):
-                if self._poll_stop.is_set():
-                    break
-                self._send(cmd)
-                time.sleep(0.03)
+            self._send("SM0;")                       # S-meter — every cycle (the fast needle)
+            time.sleep(self._CMD_DT)
             mkey = self.state.get("meter", "S")      # selected TX meter (S comes from SM0)
             if mkey in YAESU_METER and not self._poll_stop.is_set():
                 self._send(f"RM{YAESU_METER[mkey]};")
-                time.sleep(0.03)
-            if cyc % 6 == 0:                         # refresh the full panel ~every 2 s
-                c4fm = self.state.get("mode_name") == "C4FM"
-                for cmd in self._SETTINGS:
+                time.sleep(self._CMD_DT)
+            if cyc % 4 == 0 and not self._poll_stop.is_set():      # freq / mode / PTT ~3x/s
+                for cmd in ("FA;", "MD0;", "TX;"):
                     if self._poll_stop.is_set():
                         break
-                    if cmd == "NA0;" and c4fm:       # FT-991A hangs on NA0; while in C4FM
-                        continue
                     self._send(cmd)
-                    time.sleep(0.03)
+                    time.sleep(self._CMD_DT)
+            if not self._poll_stop.is_set():
+                self._poll_panel_rr()                # one panel setting per cycle (~2 s full refresh)
             cyc += 1
-            for _ in range(3):                       # ~0.3 s between fast cycles
-                if self._poll_stop.is_set():
-                    break
-                time.sleep(0.1)
+            self._poll_stop.wait(self._CMD_DT)       # short gap between cycles
+
+    def _poll_panel_rr(self) -> None:
+        """Send ONE panel setting per call, round-robin through _SETTINGS, so the full panel
+        re-reads gradually without a burst that would stall the meter."""
+        n = len(self._SETTINGS)
+        i = getattr(self, "_panel_i", 0) % n
+        self._panel_i = i + 1
+        cmd = self._SETTINGS[i]
+        if cmd == "NA0;" and self.state.get("mode_name") == "C4FM":
+            return                                   # FT-991A hangs on NA0; while in C4FM
+        self._send(cmd)
+        time.sleep(self._CMD_DT)
 
     # -- commands the server dispatches --------------------------------------
     def set_freq(self, hz: int) -> None:
@@ -671,9 +687,35 @@ class YaesuRadio:
     set_mnotch_w = set_tbw = set_duplex = _noop
     set_span = set_scope_mode = _noop
 
+    _METER_FIELDS = ("smeter", "smeter_s", "meter_val")
+
+    def _state_sig(self) -> str:
+        out = {}
+        for k, v in self.state.items():
+            if k in self._METER_FIELDS:
+                continue
+            if isinstance(v, dict):
+                v = {kk: vv for kk, vv in v.items() if kk not in self._METER_FIELDS}
+            out[k] = v
+        return json.dumps(out, sort_keys=True, default=str)
+
     def _emit_state(self) -> None:
-        if self.on_state:
+        if not self.on_state:
+            return
+        sig = self._state_sig()                  # skip redundant full frames (panel re-reads)
+        if sig == self._last_sig:
+            return
+        self._last_sig = sig
+        try:
+            self.on_state(self.state)
+        except Exception:
+            pass
+
+    def _emit_meter(self) -> None:
+        if self.on_meter:
+            s = self.state
             try:
-                self.on_state(self.state)
+                self.on_meter(s.get("meter", "S"), s.get("meter_val", 0),
+                              s.get("smeter", 0), s.get("smeter_s", "S0"))
             except Exception:
                 pass

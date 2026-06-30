@@ -7,6 +7,17 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.16 — remote operation: host audio + fast meter + secure remote access
+- **Host sound‑card audio** for serial/USB radios operated remotely — the server captures the host's
+  RX card → browser and plays the browser mic → the host's TX card (16 kHz PCM over the WS, like the
+  LAN path). Radio RX/TX pickers list host devices; optional `sounddevice` dep.
+- **Faster meter** — S/TX meters on a dedicated lightweight WS channel (~25 Hz Icom / ~12 Hz Yaesu),
+  hi‑res‑timer pacing, and full‑state de‑dup so it doesn't flood. Failsafes untouched.
+- **Secure remote access (Tailscale).** In‑app **🌐 Remote** setup: detects Tailscale, runs
+  `tailscale serve` (tailnet‑only HTTPS, no port‑forward, CGNAT‑friendly), explains why HTTPS is
+  needed. App‑layer shared‑password auth (loopback exempt; not‑trusted behind a proxy) + an
+  Origin/Host allowlist closing cross‑site‑WS / DNS‑rebinding.
+
 ### v0.2.15 — audio routing + sharper waterfall + live CW decode
 - **Three-input audio routing** — COM radios expose **Radio RX / Radio TX / Mic In**; IP radios just
   **Mic In** (defaults to the OS mic, never the radio CODEC). Remembered per radio.
