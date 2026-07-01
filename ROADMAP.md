@@ -7,6 +7,15 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.19 — Yaesu operating controls (modes, Tone/DCS, NAR/WIDE)
+- **Radio-accurate mode labels** on the Yaesu radios (CW-LSB/CW-USB, RTTY-LSB/RTTY-USB,
+  DATA-LSB/DATA-USB, correct order) — the UI mirrors the rig's own MODE list.
+- **FM Tone/DCS panel** — tone mode (`CT`), 50 CTCSS tones + 104 DCS codes (`CN`), repeater shift
+  (`OS`); FM-family modes only. **NAR/WIDE** toggle (`NA`). New caps `narrow` / `fm_tone`.
+- Kicks off the **"expose every setting"** effort: [docs/ADDING-A-RADIO.md](docs/ADDING-A-RADIO.md)
+  now requires it, and [docs/FT-991A-SETTINGS-AUDIT.md](docs/FT-991A-SETTINGS-AUDIT.md) tracks the
+  remaining operating controls (WIDTH/CONTOUR/TXW/MONITOR/CW-cluster/…).
+
 ### v0.2.18 — one-click Windows install
 - **`install.bat`** (one-click install/update): checks for Python first (installs 3.12 via
   `winget` if missing), builds an isolated `.venv`, installs deps, verifies the import, and

@@ -45,18 +45,20 @@ def _sleep_until(deadline: float, abort) -> None:
             return
         time.sleep(0.0008 if rem > 0.0008 else rem)
 
-# our mode-button name -> Yaesu MD command code (P2 char). Only the subset the
-# FT-991A profile exposes (all of which also exist in civ.MODE_CODES).
+# our mode-button name -> Yaesu MD command code (P2 char). Names match the radio's
+# own labels (CW-USB/CW-LSB, RTTY-LSB/RTTY-USB, DATA-LSB/DATA-USB) so the UI mirrors
+# the rig. LSB/USB/AM/FM arrive as CI-V codes (via civ.MODES); the rest as the name.
 YAESU_MD = {
-    "LSB": "1", "USB": "2", "CW": "3", "FM": "4", "AM": "5",
-    "RTTY": "6", "CW-R": "7", "RTTY-R": "9",
-    "DATA-L": "8", "DATA-FM": "A", "DATA-U": "C", "C4FM": "E",
+    "LSB": "1", "USB": "2", "CW-USB": "3", "FM": "4", "AM": "5",
+    "RTTY-LSB": "6", "CW-LSB": "7", "DATA-LSB": "8", "RTTY-USB": "9",
+    "DATA-FM": "A", "DATA-USB": "C", "C4FM": "E",
 }
-# MD reply code -> readable name (includes codes we don't expose as buttons)
+# MD reply code -> readable name (matches the radio's front-panel mode labels;
+# includes FM-N / AM-N, which the rig can report but we don't expose as buttons)
 MD_DECODE = {
-    "1": "LSB", "2": "USB", "3": "CW", "4": "FM", "5": "AM",
-    "6": "RTTY", "7": "CW-R", "8": "DATA-L", "9": "RTTY-R",
-    "A": "DATA-FM", "B": "FM-N", "C": "DATA-U", "D": "AM-N", "E": "C4FM",
+    "1": "LSB", "2": "USB", "3": "CW-USB", "4": "FM", "5": "AM",
+    "6": "RTTY-LSB", "7": "CW-LSB", "8": "DATA-LSB", "9": "RTTY-USB",
+    "A": "DATA-FM", "B": "FM-N", "C": "DATA-USB", "D": "AM-N", "E": "C4FM",
 }
 # GT answer P3 (0-6) -> our AGC button (1 FAST / 2 MID / 3 SLOW). The radio
 # reports AUTO as 4/5/6 (auto-fast/mid/slow); fold those onto the base speed.
@@ -297,8 +299,18 @@ class YaesuRadio:
         elif m.startswith("LK") and len(m) >= 3 and m[2] in ("0", "1"):
             self.state["lock"] = (m[2] == "1")
         elif m.startswith("NA0") and len(m) >= 4:                  # narrow/wide -> FIL1/FIL2
+            self.state["narrow"] = 1 if m[3] == "1" else 0
             self.state["filter"] = 2 if m[3] == "1" else 1
             self.state["filter_name"] = "FIL2" if m[3] == "1" else "FIL1"
+        elif m.startswith("CT0") and len(m) >= 4 and m[3].isdigit():   # CTCSS/DCS mode
+            self.state["tone_mode"] = int(m[3])
+        elif m.startswith("CN0") and len(m) >= 7 and m[4:7].isdigit():  # CN0<p2><nnn> tone/DCS number
+            if m[3] == "0":
+                self.state["tone_freq"] = int(m[4:7])
+            elif m[3] == "1":
+                self.state["dcs_code"] = int(m[4:7])
+        elif m.startswith("OS0") and len(m) >= 4 and m[3] in ("0", "1", "2"):  # repeater shift
+            self.state["rpt_shift"] = int(m[3])
         elif m.startswith("FT") and len(m) >= 3 and m[2] in ("0", "1"):
             self.state["split"] = 1 if m[2] == "1" else 0
         elif m.startswith("RT") and len(m) >= 3 and m[2] in ("0", "1"):
@@ -338,7 +350,8 @@ class YaesuRadio:
     # fast-changing freq/mode/smeter/tx out of here; those poll every cycle.
     _SETTINGS = ("PC;", "AG0;", "RG0;", "SQ0;", "MG;", "GT0;",
                  "NB0;", "NL0;", "NR0;", "RL0;", "BC0;", "BP00;",
-                 "PA0;", "RA0;", "LK;", "NA0;", "FT;", "RT;", "AC;")
+                 "PA0;", "RA0;", "LK;", "NA0;", "FT;", "RT;", "AC;",
+                 "CT0;", "CN00;", "CN01;", "OS0;")     # FM Tone/DCS mode + tone/DCS number + shift
 
     _CMD_DT = 0.02                               # inter-command pacing; 0.02 is the FT-991A CAT floor
 
@@ -535,6 +548,41 @@ class YaesuRadio:
         self._send(f"RC;RU{hz:04d};" if hz >= 0 else f"RC;RD{-hz:04d};")
         self._emit_state()
 
+    def set_narrow(self, on: bool) -> None:
+        # NAR/WIDE — the IF filter narrow toggle (NA), i.e. the front-panel NAR key.
+        self.state["narrow"] = 1 if on else 0
+        self.state["filter"] = 2 if on else 1
+        self.state["filter_name"] = "FIL2" if on else "FIL1"
+        if self.state.get("mode_name") != "C4FM":          # NA0 hangs the rig in C4FM
+            self._send(f"NA0{1 if on else 0};")
+        self._emit_state()
+
+    # -- FM Tone / DCS + repeater shift (FM-family modes) --------------------
+    def set_tone_mode(self, v: int) -> None:
+        v = max(0, min(4, int(v)))                          # CT P2: 0 OFF/1 TSQL/2 TONE/3 DCS/4 DCS-ENC
+        self.state["tone_mode"] = v
+        self._send(f"CT0{v};")
+        self._emit_state()
+
+    def set_tone_freq(self, idx: int) -> None:
+        idx = max(0, min(49, int(idx)))                     # CTCSS tone number (Table 1)
+        self.state["tone_freq"] = idx
+        self._send(f"CN00{idx:03d};")
+        self._emit_state()
+
+    def set_dcs_code(self, idx: int) -> None:
+        idx = max(0, min(103, int(idx)))                    # DCS code number (Table 2)
+        self.state["dcs_code"] = idx
+        self._send(f"CN01{idx:03d};")
+        self._emit_state()
+
+    def set_rpt_shift(self, v: int) -> None:
+        v = max(0, min(2, int(v)))                          # OS P2: 0 simplex/1 +shift/2 -shift (FM only)
+        self.state["rpt_shift"] = v
+        if self.state.get("mode_name") in ("FM", "FM-N", "DATA-FM", "C4FM"):
+            self._send(f"OS0{v};")
+        self._emit_state()
+
     def set_tuner(self, on: bool) -> None:
         # Switch the internal ATU in (AC001) or out of line (AC000). This does NOT transmit.
         self.state["tuner"] = 1 if on else 0
@@ -570,7 +618,7 @@ class YaesuRadio:
             return
         if not (self._key_port and self._key_port.is_open):
             return                                       # CW key port unavailable
-        if self.state.get("mode_name") not in ("CW", "CW-R"):
+        if self.state.get("mode_name") not in ("CW-USB", "CW-LSB"):
             return                                       # only meaningful in CW (the UI guards too)
         if self.state.get("cw_tx") or (self._cw_thread and self._cw_thread.is_alive()):
             return                                       # re-entrancy guard: one message keys at a time

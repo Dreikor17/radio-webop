@@ -237,7 +237,16 @@
         <button class="key filt" data-act="filter" data-filter="1">FIL1</button>
         <button class="key filt" data-act="filter" data-filter="2">FIL2</button>
         <button class="key filt" data-act="filter" data-filter="3">FIL3</button>
+        <button class="key tog" data-act="toggle" data-fn="narrow" id="narBtn" title="Narrow IF filter (NAR) in / out">NAR</button>
       </div>
+    </div>
+
+    <div class="grp" id="fmGrp">
+      <div class="grp-title">FM · TONE / DCS</div>
+      <label class="sl sl-sel"><span>TONE</span><select id="toneMode" title="CTCSS/DCS encode &amp; decode mode"></select></label>
+      <label class="sl sl-sel"><span>CTCSS</span><select id="toneFreq" title="CTCSS tone frequency"></select></label>
+      <label class="sl sl-sel"><span>DCS</span><select id="dcsCode" title="DCS code"></select></label>
+      <label class="sl sl-sel"><span>SHIFT</span><select id="rptShift" title="Repeater shift direction"></select></label>
     </div>
 
     <div class="grp sliders">

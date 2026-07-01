@@ -78,6 +78,8 @@ class Capabilities:
     meters: list = field(default_factory=list)    # ["S","PO","SWR","ALC","COMP","Vd","Id"]
     cw_tx: bool = False
     menus: bool = False
+    narrow: bool = False        # NAR/WIDE IF-filter toggle (Yaesu NA)
+    fm_tone: bool = False       # FM Tone/DCS + repeater-shift panel (Yaesu CT/CN/OS), FM modes only
 
 
 @dataclass
@@ -166,6 +168,8 @@ class RadioProfile:
                 tx_funcs=["comp", "vox", "mon"], tbw=True,
                 meters=["S", "PO", "SWR", "ALC", "COMP", "Vd", "Id"],
                 cw_tx=bool(self.cw_send), menus=bool(self.menu),
+                narrow=self.protocol == "yaesu",
+                fm_tone=self.protocol == "yaesu",
             )
         elif self.menu and not self.capabilities.menus:
             self.capabilities.menus = True
@@ -313,8 +317,10 @@ from .menus.ft991a_menu import FT991A_MENU  # noqa: E402  (after MenuItem is def
 FT991A = RadioProfile(
     id="ft991a", name="FT-991A", civ_addr=0x00,
     make="Yaesu", protocol="yaesu", has_scope=False, default_baud=38400,
-    modes=["LSB", "USB", "CW", "CW-R", "AM", "FM", "RTTY", "RTTY-R",
-           "DATA-L", "DATA-U", "DATA-FM", "C4FM"],
+    # mode buttons match the radio's own labels + order (CW-USB=MD3, CW-LSB=MD7,
+    # RTTY-LSB=MD6, RTTY-USB=MD9, DATA-LSB=MD8, DATA-USB=MDC, DATA-FM=MDA, C4FM=MDE).
+    modes=["LSB", "USB", "AM", "CW-LSB", "CW-USB", "FM", "RTTY-LSB", "RTTY-USB",
+           "C4FM", "DATA-LSB", "DATA-USB", "DATA-FM"],
     bands=[
         Band("160", 1_800_000, 2_000_000, 1_840_000),
         Band("80", 3_500_000, 4_000_000, 3_700_000),
@@ -331,8 +337,8 @@ FT991A = RadioProfile(
         Band("70", 430_000_000, 450_000_000, 432_100_000),
     ],
     filter_bw={
-        "LSB": _SSB, "USB": _SSB, "CW": _CW, "CW-R": _CW,
-        "RTTY": _RTTY, "RTTY-R": _RTTY, "DATA-L": _SSB, "DATA-U": _SSB,
+        "LSB": _SSB, "USB": _SSB, "CW-USB": _CW, "CW-LSB": _CW,
+        "RTTY-LSB": _RTTY, "RTTY-USB": _RTTY, "DATA-LSB": _SSB, "DATA-USB": _SSB,
         "AM": {1: 9000, 2: 6000, 3: 3000}, "FM": {1: 16000, 2: 9000, 3: 9000},
         "DATA-FM": {1: 16000, 2: 9000, 3: 9000}, "C4FM": {1: 16000, 2: 16000, 3: 16000},
     },
@@ -373,7 +379,9 @@ from .menus.ft891_menu import FT891_MENU  # noqa: E402  (after MenuItem is defin
 FT891 = RadioProfile(
     id="ft891", name="FT-891", civ_addr=0x00,
     make="Yaesu", protocol="yaesu", has_scope=False, has_network=False, default_baud=38400,
-    modes=["LSB", "USB", "CW", "CW-R", "AM", "FM", "RTTY", "RTTY-R", "DATA-L", "DATA-U"],
+    # radio-accurate mode labels (no C4FM / DATA-FM on the FT-891)
+    modes=["LSB", "USB", "AM", "CW-LSB", "CW-USB", "FM", "RTTY-LSB", "RTTY-USB",
+           "DATA-LSB", "DATA-USB"],
     bands=[
         Band("160", 1_800_000, 2_000_000, 1_840_000),
         Band("80", 3_500_000, 4_000_000, 3_700_000),
@@ -388,8 +396,8 @@ FT891 = RadioProfile(
         Band("6", 50_000_000, 54_000_000, 50_313_000),
     ],
     filter_bw={
-        "LSB": _SSB, "USB": _SSB, "CW": _CW, "CW-R": _CW,
-        "RTTY": _RTTY, "RTTY-R": _RTTY, "DATA-L": _SSB, "DATA-U": _SSB,
+        "LSB": _SSB, "USB": _SSB, "CW-USB": _CW, "CW-LSB": _CW,
+        "RTTY-LSB": _RTTY, "RTTY-USB": _RTTY, "DATA-LSB": _SSB, "DATA-USB": _SSB,
         "AM": {1: 9000, 2: 6000, 3: 3000}, "FM": {1: 16000, 2: 9000, 3: 9000},
     },
     mod_dataoff=(0x00, 0x00), lan_mod_level=(0x00, 0x00),
@@ -411,6 +419,7 @@ FT891 = RadioProfile(
         tx_funcs=["comp", "vox", "mon"], tbw=True,
         meters=["S", "PO", "SWR", "ALC", "COMP", "Id"],   # FT-891 RM: 7=ID is the top; no VDD (8)
         cw_tx=False, menus=True,
+        narrow=True, fm_tone=True,
     ),
     menu=FT891_MENU,
     connect_help=[

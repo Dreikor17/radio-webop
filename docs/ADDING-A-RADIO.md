@@ -51,6 +51,39 @@ Items 1–5, 8 ship today; 6 (high‑SWR cutoff) is being added per‑radio; 7 i
 (power is no longer forced to 0). The profile fields make every safety feature
 inherit‑by‑filling for future radios.
 
+## Completeness — expose *every* setting the radio has
+
+**Goal: the web UI should let the operator do everything they could do standing at the radio.**
+Not just frequency/mode/levels — every operating control and every menu item. Treat the manuals
+as the checklist, in two layers:
+
+1. **SET / MENU items** → the data‑driven **Settings** tab. Compile the *complete* menu table
+   into `backend/menus/<id>_menu.py` (one `MenuItem` per entry, every group), not a subset.
+2. **Operating (front‑panel / FUNCTION‑menu) controls** → real controls in the main tabs, each
+   backed by a CAT/CI‑V command. These are the ones most often missed because they are *not* in
+   the SET menu. Go through the manual's FUNCTION/operating sections and the CAT reference's full
+   command list and wire **all** of them, gating each to the modes it applies to. For the Yaesu
+   radios this includes, e.g.: **NAR/WIDE** (`NA`), **WIDTH** (`SH`), **CONTOUR/APF** (`CO`),
+   **IF‑SHIFT** (`IS`), **CTCSS/DCS tone mode** (`CT`), **tone/DCS number** (`CN`), **repeater
+   shift** (`OS`), **MONITOR** (`ML`), **break‑in/keyer/speed/pitch/spot** (`BI`/`KR`/`KS`/`KP`/`CS`),
+   **TXW** (`TS`), **scan/memory/VFO‑MEM** (`SC`/`MC`/`VM`), etc.
+
+How to be exhaustive and not miss things:
+
+- **Audit the manual against the code.** Extract the CAT/CI‑V reference and the operating manual to
+  text (`pymupdf`/`fitz` — the Read tool can't rasterize PDFs here), list *every* command and
+  operating setting, and diff against what the handler + UI already expose. Anything reachable over
+  the control link but not in the UI is a gap to close. (This repo keeps such an audit as a
+  workflow; see the FT‑991A gap list in the changelog history.)
+- **Gate by capability + mode.** Add a `Capabilities` flag for each optional control family (e.g.
+  `narrow`, `fm_tone`) so the UI shows it only on radios that have it, and hide mode‑specific
+  controls when out of mode (Tone/DCS only in FM, WIDTH/CONTOUR only in SSB/CW/RTTY/DATA, APF/keyer
+  only in CW). Adaptive UI beats a wall of dead buttons.
+- **Never ship a dead control.** If a button/slider exists in the HTML, its handler must be real
+  (not a `_noop`). A stub that silently does nothing is worse than an absent control.
+- **Verify a sample on the real radio** (read → echo) before trusting new commands, and remember
+  the transmit‑safety contract above for anything that can key TX (`KY` keyer playback, `MX` MOX).
+
 ## The profile is the declarative source of truth
 
 A `RadioProfile` describes *everything* about reaching a radio and what it can do, and the UI

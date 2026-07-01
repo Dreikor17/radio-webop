@@ -286,6 +286,10 @@ select,input,.baud{
 .audio-grp .sl-dev{grid-template-columns:58px 1fr;gap:6px}   /* beats the mobile .sl 3-col override */
 .sl-dev[hidden]{display:none}
 .sl-dev select{width:100%;min-width:0;font-size:11px;padding:3px 5px}
+/* FM Tone/DCS select rows (label + select) */
+.sl-sel{grid-template-columns:58px 1fr;gap:6px}
+.sl-sel select{width:100%;min-width:0;font-size:11px;padding:3px 5px}
+#fmGrp{display:none}                 /* shown by JS: FM-capable radio + an FM-family mode */
 .sl input[type=range]{width:100%;accent-color:var(--accent);margin:0}
 /* full edge-to-edge travel (no inset on the track ends) */
 .sl input[type=range]::-webkit-slider-thumb{margin:0}

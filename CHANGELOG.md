@@ -3,6 +3,27 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.19] — 2026-07-01
+
+Yaesu operating controls to match the radio: correct mode labels, FM Tone/DCS, and NAR/WIDE —
+part of an ongoing push to surface **every** setting the rig has (see the audit doc).
+
+### Added
+- **FM Tone / DCS panel** (FT-991A + FT-891) — CTCSS/DCS **tone mode** (OFF / TONE / TSQL / DCS /
+  DCS-ENC, `CT`), **CTCSS tone** (all 50, `CN`), **DCS code** (all 104, `CN`), and **repeater
+  shift** direction (Simplex / + / −, `OS`). Shown only in FM-family modes. This fills the missing
+  2 m / 70 cm tone/DCS controls.
+- **NAR/WIDE** IF-filter toggle (`NA`) as an explicit control.
+- **`docs/FT-991A-SETTINGS-AUDIT.md`** — a checklist of every FT-991A operating control vs. the UI,
+  and a **"Completeness"** section in [docs/ADDING-A-RADIO.md](docs/ADDING-A-RADIO.md) making
+  "expose every setting the radio has" an explicit requirement for each radio.
+
+### Changed
+- **Mode buttons now match the radio's own labels + order** on the Yaesu radios: **LSB, USB, AM,
+  CW-LSB, CW-USB, FM, RTTY-LSB, RTTY-USB, C4FM, DATA-LSB, DATA-USB, DATA-FM** (was CW/CW-R/RTTY/
+  RTTY-R/DATA-L/DATA-U). Icom labels are unchanged. New `Capabilities` flags `narrow` / `fm_tone`
+  gate the new controls; the server passes radio-specific mode labels straight through.
+
 ## [0.2.18] — 2026-07-01
 
 One-click install/update on Windows — no Python or command line needed.

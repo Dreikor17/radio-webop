@@ -491,6 +491,8 @@ class YaesuSimTransport(Transport):
         self._menu_vals = {}       # num -> wire value field (as written), for EX read-back
         self._levels = {"PC": "025", "AG0": "140", "RG0": "200",   # power(W)/AF/RF: so the
                         "SQ0": "015", "MG": "050", "GT0": "2"}      # sim reports real levels
+        # operating toggles/enums echoed on read (key = command prefix, value = param field)
+        self._ops = {"NA0": "0", "CT0": "0", "CN00": "012", "CN01": "000", "OS0": "0"}
 
     @property
     def name(self) -> str:
@@ -551,6 +553,12 @@ class YaesuSimTransport(Transport):
             for k in self._levels:                 # level set -> remember (sim)
                 if cmd.startswith(k) and cmd[len(k):].isdigit():
                     self._levels[k] = cmd[len(k):]; break
+        elif any(cmd == p or (cmd.startswith(p) and cmd[len(p):].isdigit()) for p in self._ops):
+            for pfx in self._ops:                  # NA0/CT0/CN00/CN01/OS0 read + write
+                if cmd == pfx:
+                    out = f"{pfx}{self._ops[pfx]};"; break
+                if cmd.startswith(pfx) and cmd[len(pfx):].isdigit():
+                    self._ops[pfx] = cmd[len(pfx):]; break
         elif cmd.startswith("EX") and len(cmd) >= 5 and cmd[2:5].isdigit():     # SET menu
             # menu-number width varies (FT-991A NNN=3, FT-891 GGNN=4); match a known item.
             body = cmd[2:]

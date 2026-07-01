@@ -160,6 +160,12 @@ def fresh_state(p) -> dict:
         "rit": 0, "rit_freq": 0,
         "split": 0, "duplex": 0,
         "offset": 600000,
+        # FM operating settings (Tone/DCS + repeater shift) and the NAR/WIDE toggle
+        "narrow": 0,
+        "tone_mode": 0,      # 0 OFF / 1 TSQL / 2 TONE / 3 DCS / 4 DCS-ENC (Yaesu CT P2)
+        "tone_freq": 0,      # CTCSS tone index 0-49
+        "dcs_code": 0,       # DCS code index 0-103
+        "rpt_shift": 0,      # 0 simplex / 1 +shift / 2 -shift
         "has_scope": getattr(p, "has_scope", True),
         "cw_tx": False,                                  # CW message currently transmitting
         "has_cw_tx": bool(getattr(p, "cw_send", "")),    # this radio can send a typed CW message
@@ -703,6 +709,14 @@ class Radio:
         self.state["split"] = 0
         self._write(self._b(0x0F, 0x10 + mode))
         self._emit_state()
+
+    # FM Tone/DCS + repeater-shift + NAR/WIDE — not yet implemented for Icom CI-V
+    # (the Yaesu handler implements these); no-op so the shared WS dispatch is safe.
+    def set_tone_mode(self, v: int) -> None: pass
+    def set_tone_freq(self, idx: int) -> None: pass
+    def set_dcs_code(self, idx: int) -> None: pass
+    def set_rpt_shift(self, v: int) -> None: pass
+    def set_narrow(self, on: bool) -> None: pass
 
     def set_band(self, band: str) -> None:
         f = self.profile.band_default(band)

@@ -358,8 +358,12 @@ def _handle_cmd(cmd: dict) -> None:
         elif action == "tune":
             radio.tune(int(cmd["delta"]))
         elif action == "set_mode":
-            code = civ.MODE_CODES.get(cmd["mode"])
-            if code is not None:
+            # Icom names map to a CI-V code; radio-specific labels (e.g. the Yaesu
+            # CW-USB/CW-LSB/DATA-LSB spellings) fall through as the name, which the
+            # Yaesu handler resolves directly.
+            m = cmd.get("mode")
+            code = civ.MODE_CODES.get(m, m)
+            if code not in (None, ""):
                 radio.set_mode(code, cmd.get("filter"))
         elif action == "set_filter":
             radio.set_filter(int(cmd["filter"]))
@@ -405,6 +409,16 @@ def _handle_cmd(cmd: dict) -> None:
             radio.set_split(bool(cmd["on"]))
         elif action == "duplex":
             radio.set_duplex(int(cmd["mode"]))
+        elif action == "narrow":
+            radio.set_narrow(bool(cmd["on"]))
+        elif action == "tone_mode":
+            radio.set_tone_mode(int(cmd["value"]))
+        elif action == "tone_freq":
+            radio.set_tone_freq(int(cmd["idx"]))
+        elif action == "dcs_code":
+            radio.set_dcs_code(int(cmd["idx"]))
+        elif action == "rpt_shift":
+            radio.set_rpt_shift(int(cmd["value"]))
         elif action == "ptt":
             radio.set_ptt(bool(cmd["tx"]))
         elif action == "cw_tx":
