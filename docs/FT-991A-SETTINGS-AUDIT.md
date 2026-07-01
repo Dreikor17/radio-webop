@@ -12,32 +12,29 @@ checklist — the SET/MENU items already ship in full on the **Settings** tab; t
 - [x] **FM Tone/DCS** — tone mode OFF/TONE/TSQL/DCS/DCS-ENC (`CT`), CTCSS tone (50, `CN0`),
       DCS code (104, `CN1`); shown only in FM-family modes.
 - [x] **Repeater shift** direction — Simplex / + / − (`OS`), FM only.
+- [x] **IF WIDTH** — DSP passband width stepper (`SH`), per-mode Hz from the manual table;
+      SSB/CW/RTTY/DATA, follows NAR/WIDE. (DSP tab.)
+- [x] **CONTOUR** on/off + centre freq (`CO0`/`CO1`, 10–3200 Hz). SSB/CW/RTTY/DATA/AM.
+- [x] **APF** on/off + peak freq (`CO2`/`CO3`, −250..+250 Hz). CW only.
+- [x] **MONITOR** on/off + level (`ML0`/`ML1`) — the `MON` button + `MON` slider are now real
+      (were no-ops).
+- [x] **CW cluster** — Break-In (`BI`), Keyer (`KR`), Keyer speed (`KS`, 4–60 WPM), CW pitch
+      (`KP`, 300–1050 Hz), SPOT (`CS`), Zero-In (`ZI`). CW modes only.
+- [x] **TXW** (`TS`), **Quick Split** (`QS`), **Parametric mic EQ** (`PR1`). (TX tab.)
+- [x] **SCAN** stop/up/down (`SC`) + **FAST** step (`FS`). (Radio tab, OPERATING.)
 
-## To do (operating controls)
-
-### High
-- [ ] **IF WIDTH** — DSP passband width (`SH`, per-mode bandwidth code table). SSB/CW/RTTY/DATA.
-- [ ] **CONTOUR** on/off + center freq (`CO0 0` / `CO0 1`, 10–3200 Hz). SSB/CW/RTTY/DATA/AM.
-- [ ] **TXW** — listen on the TX frequency during split (`TS`, hold). All (split).
-
-### Medium
-- [ ] **MONITOR** on/off + level (`ML0` / `ML1`) — the existing `#monBtn` / `#mon_level` are
-      currently no-ops; make them real. (Also the CW sidetone level.)
-- [ ] **APF** on/off + peak freq (`CO0 2` / `CO0 3`, −250..+250 Hz). CW only.
-- [ ] **Break-In** on/off (`BI`), **Keyer** on/off (`KR`), **keyer speed** (`KS`, 4–60 WPM),
-      **CW pitch** (`KP`, 300–1050 Hz). CW only.
-- [ ] **Quick Split** (`QS`); **Scan** (`SC`); **Memory channel** select (`MC`); **VFO/MEM**
-      toggle (`VM`); **FAST** step (`FS`).
-- [ ] **Parametric mic EQ** enable via `PR1` (SSB/AM).
-
-### Low
-- [ ] CW **SPOT** (`CS`) / **Zero-In** (`ZI`); keyer-memory **edit** (`KM`) + **playback**
-      (`KY`, keys TX — bind to the PTT failsafe); **BK-IN delay** quick set (`SD`).
-- [ ] Memory **store/copy** (`AM`/`MA`/`MW`/`MT`), **QMB** (`QI`/`QR`), **band select** (`BS`).
-- [ ] **MIC UP/DN** (`UP`/`DN`), **MOX** (`MX`, keys TX — failsafe), **AI** auto-info (`AI`).
-- [ ] **DVS** voice-memory record/playback (`LM`/`PB`); **Dimmer** (`DA`); **Date/Time/TZ** (`DT`).
-- [ ] Verify **IF-SHIFT** (`IS`) ↔ the current `pbt1` mapping; confirm `SH` per-mode width tables.
+## To do (deferred — need a bigger subsystem, or niche / redundant)
+- [ ] **Memory channels** — channel select (`MC`), VFO⇄MEM (`VM`), store/copy (`MW`/`MT`/`MA`),
+      QMB (`QI`/`QR`), band select (`BS`). Needs a memory-management UI (a distinct feature).
+- [ ] **CW keyer messages** — edit (`KM`) + playback (`KY`, keys TX → must bind the PTT failsafe).
+      Pairs with the memory work; the app's own CW-TX (host-timed keying) is the primary path.
+- [ ] **DVS** voice-memory record/playback (`LM`/`PB`) — niche.
+- [ ] **MIC UP/DN** (`UP`/`DN`); **Date/Time/TZ** (`DT`).
+- [ ] N/A: **MOX** (`MX`) — redundant with the PTT control (both key TX); **Dimmer** (`DA`) —
+      covered by the SET-menu DIMMER items; **BK-IN delay** (`SD`) — dup of SET menu 057; **AI**
+      auto-info — internal housekeeping, not a user control; **IF-SHIFT** (`IS`) — already shipped
+      as the `PBT1` slider.
 
 _Audit generated from `docs/CAT_CONTROL_ysu-ft-991a_us.pdf` + `docs/FT-991A_OM_*.pdf`. Verify new
-commands on the real radio (read → echo) before trusting them; TX paths must honor the
-transmit-safety contract._
+commands on the real radio (read → echo) before trusting them — esp. the `SH` per-mode WIDTH
+table; TX paths must honor the transmit-safety contract._

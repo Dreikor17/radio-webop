@@ -7,6 +7,13 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.20 — FT-991A operating controls, rounded out
+- **WIDTH** (`SH`, per-mode stepper), **CONTOUR** + **APF** (`CO`), the **CW cluster**
+  (break-in/keyer/speed/pitch/spot/zero-in), **TXW**/**Quick Split**/**Parametric EQ**, **SCAN**
+  and **FAST** — all adaptive by mode. **MONITOR** (`ML`) is now real (was a no-op). New
+  `ext_ops` capability. Remaining (memory management, DVS, keyer-message play) tracked in
+  [docs/FT-991A-SETTINGS-AUDIT.md](docs/FT-991A-SETTINGS-AUDIT.md).
+
 ### v0.2.19 — Yaesu operating controls (modes, Tone/DCS, NAR/WIDE)
 - **Radio-accurate mode labels** on the Yaesu radios (CW-LSB/CW-USB, RTTY-LSB/RTTY-USB,
   DATA-LSB/DATA-USB, correct order) — the UI mirrors the rig's own MODE list.

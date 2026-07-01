@@ -166,6 +166,16 @@ def fresh_state(p) -> dict:
         "tone_freq": 0,      # CTCSS tone index 0-49
         "dcs_code": 0,       # DCS code index 0-103
         "rpt_shift": 0,      # 0 simplex / 1 +shift / 2 -shift
+        # DSP filter + CW + operating controls (Yaesu SH/CO/ML/TS/PR/BI/KR/KS/KP/CS/SC/FS)
+        "width": 0,          # SH DSP bandwidth code 0-21 (Hz depends on mode + narrow)
+        "contour": 0, "contour_freq": 10,     # CONTOUR on/off + centre freq (10-3200 Hz)
+        "apf": 0, "apf_freq": 25,             # APF on/off + freq 0-50 (25 = 0 Hz, -250..+250)
+        "txw": 0,            # TXW (listen on TX freq during split)
+        "param_eq": 0,       # parametric mic EQ on/off
+        "bkin": 0, "keyer": 0, "spot": 0,     # CW break-in / keyer / spot
+        "key_speed": 20,     # keyer WPM 4-60
+        "key_pitch": 40,     # CW pitch code 0-75 (300-1050 Hz; 40 = 700 Hz)
+        "scan": 0, "fast": 0,
         "has_scope": getattr(p, "has_scope", True),
         "cw_tx": False,                                  # CW message currently transmitting
         "has_cw_tx": bool(getattr(p, "cw_send", "")),    # this radio can send a typed CW message
@@ -710,13 +720,30 @@ class Radio:
         self._write(self._b(0x0F, 0x10 + mode))
         self._emit_state()
 
-    # FM Tone/DCS + repeater-shift + NAR/WIDE — not yet implemented for Icom CI-V
-    # (the Yaesu handler implements these); no-op so the shared WS dispatch is safe.
+    # FM Tone/DCS + repeater-shift + NAR/WIDE + the Yaesu DSP/CW/operating controls —
+    # not yet implemented for Icom CI-V (the Yaesu handler implements them); no-op so
+    # the shared WS dispatch is safe.
     def set_tone_mode(self, v: int) -> None: pass
     def set_tone_freq(self, idx: int) -> None: pass
     def set_dcs_code(self, idx: int) -> None: pass
     def set_rpt_shift(self, v: int) -> None: pass
     def set_narrow(self, on: bool) -> None: pass
+    def set_width(self, code: int) -> None: pass
+    def set_contour(self, on: bool) -> None: pass
+    def set_contour_freq(self, hz: int) -> None: pass
+    def set_apf(self, on: bool) -> None: pass
+    def set_apf_freq(self, v: int) -> None: pass
+    def set_txw(self, on: bool) -> None: pass
+    def set_param_eq(self, on: bool) -> None: pass
+    def set_bkin(self, on: bool) -> None: pass
+    def set_keyer(self, on: bool) -> None: pass
+    def set_key_speed(self, wpm: int) -> None: pass
+    def set_key_pitch(self, code: int) -> None: pass
+    def set_spot(self, on: bool) -> None: pass
+    def set_zero_in(self) -> None: pass
+    def set_quick_split(self) -> None: pass
+    def set_scan(self, direction: int) -> None: pass
+    def set_fast(self, on: bool) -> None: pass
 
     def set_band(self, band: str) -> None:
         f = self.profile.band_default(band)

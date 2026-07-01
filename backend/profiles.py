@@ -80,6 +80,7 @@ class Capabilities:
     menus: bool = False
     narrow: bool = False        # NAR/WIDE IF-filter toggle (Yaesu NA)
     fm_tone: bool = False       # FM Tone/DCS + repeater-shift panel (Yaesu CT/CN/OS), FM modes only
+    ext_ops: bool = False       # extra operating controls: WIDTH/CONTOUR/APF/monitor/CW/TXW/scan (Yaesu)
 
 
 @dataclass
@@ -170,6 +171,7 @@ class RadioProfile:
                 cw_tx=bool(self.cw_send), menus=bool(self.menu),
                 narrow=self.protocol == "yaesu",
                 fm_tone=self.protocol == "yaesu",
+                ext_ops=self.protocol == "yaesu",
             )
         elif self.menu and not self.capabilities.menus:
             self.capabilities.menus = True
@@ -419,7 +421,7 @@ FT891 = RadioProfile(
         tx_funcs=["comp", "vox", "mon"], tbw=True,
         meters=["S", "PO", "SWR", "ALC", "COMP", "Id"],   # FT-891 RM: 7=ID is the top; no VDD (8)
         cw_tx=False, menus=True,
-        narrow=True, fm_tone=True,
+        narrow=True, fm_tone=True, ext_ops=True,
     ),
     menu=FT891_MENU,
     connect_help=[

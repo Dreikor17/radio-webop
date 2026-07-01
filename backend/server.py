@@ -419,6 +419,38 @@ def _handle_cmd(cmd: dict) -> None:
             radio.set_dcs_code(int(cmd["idx"]))
         elif action == "rpt_shift":
             radio.set_rpt_shift(int(cmd["value"]))
+        elif action == "width":
+            radio.set_width(int(cmd["code"]))
+        elif action == "contour":
+            radio.set_contour(bool(cmd["on"]))
+        elif action == "contour_freq":
+            radio.set_contour_freq(int(cmd["hz"]))
+        elif action == "apf":
+            radio.set_apf(bool(cmd["on"]))
+        elif action == "apf_freq":
+            radio.set_apf_freq(int(cmd["v"]))
+        elif action == "txw":
+            radio.set_txw(bool(cmd["on"]))
+        elif action == "param_eq":
+            radio.set_param_eq(bool(cmd["on"]))
+        elif action == "quick_split":
+            radio.set_quick_split()
+        elif action == "bkin":
+            radio.set_bkin(bool(cmd["on"]))
+        elif action == "keyer":
+            radio.set_keyer(bool(cmd["on"]))
+        elif action == "key_speed":
+            radio.set_key_speed(int(cmd["wpm"]))
+        elif action == "key_pitch":
+            radio.set_key_pitch(int(cmd["code"]))
+        elif action == "spot":
+            radio.set_spot(bool(cmd["on"]))
+        elif action == "zero_in":
+            radio.set_zero_in()
+        elif action == "scan":
+            radio.set_scan(int(cmd["dir"]))
+        elif action == "fast":
+            radio.set_fast(bool(cmd["on"]))
         elif action == "ptt":
             radio.set_ptt(bool(cmd["tx"]))
         elif action == "cw_tx":

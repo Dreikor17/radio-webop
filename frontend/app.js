@@ -182,9 +182,10 @@
     if ($("ritBtn")) $("ritBtn").classList.toggle("on", (s.rit || 0) > 0);
     if ($("ritVal")) $("ritVal").textContent = (s.rit_freq > 0 ? "+" : "") + (s.rit_freq || 0) + " Hz";
 
-    // NAR/WIDE toggle + FM Tone/DCS/shift (Yaesu operating controls)
+    // NAR/WIDE toggle + FM Tone/DCS/shift + the extra operating controls (Yaesu)
     if ($("narBtn")) $("narBtn").classList.toggle("on", (s.narrow || 0) > 0);
     syncFmPanel(s);
+    syncExtPanel(s);
 
     // level sliders (don't fight an active drag) + value readouts
     for (const t of LEVELS) {
@@ -339,6 +340,73 @@
     set("dcsCode", s.dcs_code || 0); set("rptShift", s.rpt_shift || 0);
   }
 
+  // ---- extra operating controls: WIDTH / CONTOUR / APF / CW / TXW / scan (Yaesu) ----
+  const SSB_MODES = ["LSB", "USB"], CW_MODES = ["CW-USB", "CW-LSB"];
+  const RTTYDATA_MODES = ["RTTY-LSB", "RTTY-USB", "DATA-LSB", "DATA-USB"];
+  const WIDTH_MODES = [...SSB_MODES, ...CW_MODES, ...RTTYDATA_MODES];
+  const CONTOUR_MODES = [...WIDTH_MODES, "AM"];
+  // SH DSP bandwidth per context — [code, Hz]; keyed by mode class then narrow(1)/wide(0).
+  // From the FT-991A CAT manual WIDTH table. NAR on => narrow column, NAR off => wide column.
+  // lists are sorted ascending by Hz so the -/+ stepper moves narrower/wider monotonically.
+  const SH_VALID = {
+    ssb: { 1: [[1, 200], [2, 400], [3, 600], [4, 850], [5, 1100], [6, 1350], [0, 1500], [7, 1500], [8, 1650], [9, 1800]],
+           0: [[9, 1800], [10, 1950], [11, 2100], [12, 2200], [13, 2300], [0, 2400], [14, 2400], [15, 2500], [16, 2600], [17, 2700], [18, 2800], [19, 2900], [20, 3000], [21, 3200]] },
+    cw:  { 1: [[1, 50], [2, 100], [3, 150], [4, 200], [5, 250], [6, 300], [7, 350], [8, 400], [9, 450], [0, 500], [10, 500]],
+           0: [[10, 500], [11, 800], [12, 1200], [13, 1400], [14, 1700], [15, 2000], [0, 2400], [16, 2400], [17, 3000]] },
+    data:{ 1: [[1, 50], [2, 100], [3, 150], [4, 200], [5, 250], [0, 300], [6, 300], [7, 350], [8, 400], [9, 450], [10, 500]],
+           0: [[0, 500], [10, 500], [11, 800], [12, 1200], [13, 1400], [14, 1700], [15, 2000], [16, 2400], [17, 3000]] },
+  };
+  function widthClass(m) { return CW_MODES.includes(m) ? "cw" : RTTYDATA_MODES.includes(m) ? "data" : "ssb"; }
+  function widthList() { return (SH_VALID[widthClass(state.mode_name)] || {})[(state.narrow || 0) ? 1 : 0] || []; }
+  function stepWidth(delta) {
+    const list = widthList(); if (!list.length) return;
+    let i = list.findIndex(([c]) => c === (state.width || 0)); if (i < 0) i = 0;
+    i = Math.max(0, Math.min(list.length - 1, i + delta));
+    send({ action: "width", code: list[i][0] });
+  }
+
+  let extWired = false;
+  function setupExtControls() {
+    if (extWired) return; extWired = true;
+    // sliders with their own actions: update readout live (input), send on release (change)
+    const wire = (id, act, key, fmt) => {
+      const el = $(id); if (!el) return;
+      const vv = $(id + "Val");
+      el.addEventListener("input", () => { if (vv) vv.textContent = fmt(+el.value); if (typeof setFill === "function") setFill(el); });
+      el.addEventListener("change", () => send({ action: act, [key]: +el.value }));
+    };
+    wire("contour_freq", "contour_freq", "hz", v => v + " Hz");
+    wire("apf_freq", "apf_freq", "v", v => ((v - 25) * 10) + " Hz");
+    wire("key_speed", "key_speed", "wpm", v => v + " wpm");
+    wire("key_pitch", "key_pitch", "code", v => (300 + v * 10) + " Hz");
+  }
+
+  function syncExtPanel(s) {
+    const cap = (currentRadio && currentRadio.capabilities) || {};
+    const ext = !!cap.ext_ops, mode = s.mode_name || "";
+    const disp = (id, on) => { const e = $(id); if (e) e.style.display = on ? "" : "none"; };
+    disp("widthGrp", ext && WIDTH_MODES.includes(mode));
+    disp("contourGrp", ext && CONTOUR_MODES.includes(mode));
+    disp("apfGrp", ext && CW_MODES.includes(mode));
+    disp("cwGrp", ext && CW_MODES.includes(mode));
+    disp("opsGrp", ext);
+    disp("paramEqBtn", ext); disp("txwBtn", ext); disp("qsplitBtn", ext);
+    if (!ext) return;
+    const tog = (id, v) => { const e = $(id); if (e) e.classList.toggle("on", (v || 0) > 0); };
+    tog("contourBtn", s.contour); tog("apfBtn", s.apf); tog("bkinBtn", s.bkin); tog("keyerBtn", s.keyer);
+    tog("spotBtn", s.spot); tog("paramEqBtn", s.param_eq); tog("txwBtn", s.txw); tog("fastBtn", s.fast);
+    const sl = (id, v, fmt) => {
+      const e = $(id); if (e && document.activeElement !== e) { e.value = v; if (typeof setFill === "function") setFill(e); }
+      const vv = $(id + "Val"); if (vv) vv.textContent = fmt(v);
+    };
+    sl("contour_freq", s.contour_freq || 10, v => v + " Hz");
+    sl("apf_freq", s.apf_freq == null ? 25 : s.apf_freq, v => ((v - 25) * 10) + " Hz");
+    sl("key_speed", s.key_speed || 20, v => v + " wpm");
+    sl("key_pitch", s.key_pitch == null ? 40 : s.key_pitch, v => (300 + v * 10) + " Hz");
+    const wv = $("widthVal"); if (wv) { const e = widthList().find(([c]) => c === (s.width || 0)); wv.textContent = e ? e[1] + " Hz" : "—"; }
+    setActive(".scan", b => +b.dataset.dir === (s.scan || 0));
+  }
+
   // ---- button delegation ----
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-act]");
@@ -353,14 +421,16 @@
         const labels = (currentRadio && currentRadio.preamp_labels) || ["OFF", "P.AMP"];
         send({ action: "preamp", level: ((state.preamp || 0) + 1) % labels.length });
       } else {
-        const on = fn === "att" ? !((state.att || 0) > 0)
-                 : fn === "tuner" ? !((state.tuner || 0) > 0)
-                 : fn === "narrow" ? !((state.narrow || 0) > 0)
-                 : !state.lock;
+        // generic on/off toggle: att/tuner/narrow/contour/apf/bkin/keyer/spot/param_eq/txw/fast
+        const on = fn === "lock" ? !state.lock : !((state[fn] || 0) > 0);
         send({ action: fn, on });
       }
     }
     else if (act === "tune_atu") send({ action: "tune_atu" });
+    else if (act === "width_d") stepWidth(+b.dataset.d);
+    else if (act === "scan") send({ action: "scan", dir: +b.dataset.dir });
+    else if (act === "zero_in") send({ action: "zero_in" });
+    else if (act === "quick_split") send({ action: "quick_split" });
     else if (act === "rxfunc") send({ action: "rx_func", name: b.dataset.fn, on: !((state[b.dataset.fn] || 0) > 0) });
     else if (act === "agc") send({ action: "agc", mode: +b.dataset.mode });
     else if (act === "mnotch_w") send({ action: "mnotch_w", width: +b.dataset.width });
@@ -803,6 +873,7 @@
     }
     updateConnFields();
     renderMenu(p);
+    syncExtPanel(state);         // show/hide the WIDTH/CONTOUR/APF/CW/ops groups for this radio+mode
     applyTitles();
   }
   $("radioSel").addEventListener("change", () => {
@@ -1397,6 +1468,7 @@
   requestAnimationFrame(() => scope.resize());          // re-measure once the console layout settles
   window.addEventListener("load", () => scope.resize());
   setupFmControls();                                     // populate + wire the FM Tone/DCS selects once
+  setupExtControls();                                    // wire the WIDTH/CONTOUR/APF/CW sliders once
   connectWS();
   loadRadios().then(() => {
     if (CONNS.last && radios.some(p => p.id === CONNS.last)) $("radioSel").value = CONNS.last;   // last-used radio

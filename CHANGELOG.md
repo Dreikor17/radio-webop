@@ -3,6 +3,30 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.20] — 2026-07-01
+
+Rounds out the FT-991A operating controls so the web UI mirrors the radio's front panel
+(continuing "expose every setting"). All new controls are adaptive — shown only in the modes
+they apply to — and gated to Yaesu radios.
+
+### Added
+- **DSP filter controls** — **WIDTH** (`SH`, a per-mode bandwidth stepper with real Hz),
+  **CONTOUR** on/off + frequency (`CO`), and **APF** on/off + peak frequency (`CO`, CW only).
+- **CW cluster** (CW modes) — **Break-In** (`BI`), **Keyer** (`KR`), **Keyer speed** (`KS`),
+  **CW pitch** (`KP`), **SPOT** (`CS`), **Zero-In** (`ZI`).
+- **TX** — **TXW** (`TS`, listen on the TX freq while split), **Quick Split** (`QS`),
+  **Parametric mic EQ** (`PR1`).
+- **Operating** (Radio tab) — **SCAN** stop/up/down (`SC`) and **FAST** tuning step (`FS`).
+
+### Changed / Fixed
+- **MONITOR is now real** — the `MON` toggle + level slider drive the radio (`ML`); they were
+  previously no-ops. New `Capabilities.ext_ops` flag gates the whole set.
+
+### Notes
+- Verify on the real radio (read → echo), especially the `SH` per-mode WIDTH table. Remaining
+  items (memory-channel management, DVS voice memory, keyer-message play) are tracked in
+  [docs/FT-991A-SETTINGS-AUDIT.md](docs/FT-991A-SETTINGS-AUDIT.md).
+
 ## [0.2.19] — 2026-07-01
 
 Yaesu operating controls to match the radio: correct mode labels, FM Tone/DCS, and NAR/WIDE —

@@ -311,6 +311,38 @@ class YaesuRadio:
                 self.state["dcs_code"] = int(m[4:7])
         elif m.startswith("OS0") and len(m) >= 4 and m[3] in ("0", "1", "2"):  # repeater shift
             self.state["rpt_shift"] = int(m[3])
+        elif m.startswith("SH0") and len(m) >= 5 and m[3:5].isdigit():   # DSP width code (0-21)
+            self.state["width"] = int(m[3:5])
+        elif m.startswith("CO0") and len(m) >= 8 and m[4:8].isdigit():   # CONTOUR/APF: CO0<p2><nnnn>
+            p2, nnnn = m[3], int(m[4:8])
+            if p2 == "0":   self.state["contour"] = 1 if nnnn else 0
+            elif p2 == "1": self.state["contour_freq"] = nnnn
+            elif p2 == "2": self.state["apf"] = 1 if nnnn else 0
+            elif p2 == "3": self.state["apf_freq"] = nnnn
+        elif m.startswith("ML0") and len(m) >= 6 and m[3:6].isdigit():   # monitor on/off
+            self.state["mon"] = 1 if int(m[3:6]) else 0
+        elif m.startswith("ML1") and len(m) >= 6 and m[3:6].isdigit():   # monitor level 0-100
+            self.state["mon_level"] = _unscale(int(m[3:6]), 100)
+        elif m.startswith("PR0") and len(m) >= 4 and m[3].isdigit():     # speech processor on/off
+            self.state["comp"] = 1 if m[3] == "2" else 0
+        elif m.startswith("PR1") and len(m) >= 4 and m[3].isdigit():     # parametric mic EQ on/off
+            self.state["param_eq"] = 1 if m[3] == "2" else 0
+        elif m.startswith("TS") and len(m) >= 3 and m[2] in ("0", "1"):  # TXW
+            self.state["txw"] = int(m[2])
+        elif m.startswith("BI") and len(m) >= 3 and m[2] in ("0", "1"):  # CW break-in
+            self.state["bkin"] = int(m[2])
+        elif m.startswith("KR") and len(m) >= 3 and m[2] in ("0", "1"):  # CW keyer on/off
+            self.state["keyer"] = int(m[2])
+        elif m.startswith("KS") and len(m) >= 5 and m[2:5].isdigit():    # keyer speed (WPM)
+            self.state["key_speed"] = int(m[2:5])
+        elif m.startswith("KP") and len(m) >= 4 and m[2:4].isdigit():    # CW pitch code (0-75)
+            self.state["key_pitch"] = int(m[2:4])
+        elif m.startswith("CS") and len(m) >= 3 and m[2] in ("0", "1"):  # CW spot
+            self.state["spot"] = int(m[2])
+        elif m.startswith("SC") and len(m) >= 3 and m[2] in ("0", "1", "2"):  # scan
+            self.state["scan"] = int(m[2])
+        elif m.startswith("FS") and len(m) >= 3 and m[2] in ("0", "1"):  # fast tuning step
+            self.state["fast"] = int(m[2])
         elif m.startswith("FT") and len(m) >= 3 and m[2] in ("0", "1"):
             self.state["split"] = 1 if m[2] == "1" else 0
         elif m.startswith("RT") and len(m) >= 3 and m[2] in ("0", "1"):
@@ -351,7 +383,11 @@ class YaesuRadio:
     _SETTINGS = ("PC;", "AG0;", "RG0;", "SQ0;", "MG;", "GT0;",
                  "NB0;", "NL0;", "NR0;", "RL0;", "BC0;", "BP00;",
                  "PA0;", "RA0;", "LK;", "NA0;", "FT;", "RT;", "AC;",
-                 "CT0;", "CN00;", "CN01;", "OS0;")     # FM Tone/DCS mode + tone/DCS number + shift
+                 "CT0;", "CN00;", "CN01;", "OS0;",     # FM Tone/DCS mode + tone/DCS number + shift
+                 "SH0;", "CO00;", "CO01;", "CO02;", "CO03;",   # width + contour/APF
+                 "ML0;", "ML1;", "PR0;", "PR1;", "TS;",        # monitor + processor/param-EQ + TXW
+                 "BI;", "KR;", "KS;", "KP;", "CS;",            # CW break-in/keyer/speed/pitch/spot
+                 "SC;", "FS;")                                  # scan + fast step
 
     _CMD_DT = 0.02                               # inter-command pacing; 0.02 is the FT-991A CAT floor
 
@@ -481,7 +517,9 @@ class YaesuRadio:
         elif sub == 0x07:                             # twin-PBT inner -> single IF shift
             off = max(-1200, min(1200, round((value - 128) / 127 * 1200 / 20) * 20))
             key, cmd = "pbt1", f"IS0{'+' if off >= 0 else '-'}{abs(off):04d};"
-        # mon/vox/pbt2 have no safe FT-991A mapping (vox arms TX) -> ignored.
+        elif sub == 0x15:                             # monitor level ML1 000-100
+            key, cmd = "mon_level", f"ML1{_scale(value, 100):03d};"
+        # vox/pbt2 have no safe FT-991A mapping (vox arms TX) -> ignored.
         if cmd is None:
             return
         if key:
@@ -502,7 +540,9 @@ class YaesuRadio:
             cmd = f"BP00{v:03d};"                     # IF (manual) notch BP00000; / BP00001;
         elif name == "comp":
             cmd = f"PR0{2 if on else 1};"             # speech processor on/off
-        # "vox"/"mon": vox arms TX -> never toggled here (safety)
+        elif name == "mon":
+            cmd = f"ML0{1 if on else 0:03d};"         # monitor on/off (ML0 000/001)
+        # "vox": arms TX off mic audio -> never toggled here (safety)
         if cmd is None:
             return
         self.state[name] = v
@@ -581,6 +621,94 @@ class YaesuRadio:
         self.state["rpt_shift"] = v
         if self.state.get("mode_name") in ("FM", "FM-N", "DATA-FM", "C4FM"):
             self._send(f"OS0{v};")
+        self._emit_state()
+
+    # -- DSP filter: WIDTH / CONTOUR / APF ------------------------------------
+    def set_width(self, code: int) -> None:
+        code = max(0, min(21, int(code)))                   # SH bandwidth code (per-mode table)
+        self.state["width"] = code
+        self._send(f"SH0{code:02d};")
+        self._emit_state()
+
+    def set_contour(self, on: bool) -> None:
+        self.state["contour"] = 1 if on else 0
+        self._send(f"CO000001;" if on else "CO000000;")     # CO P2=0 on/off
+        self._emit_state()
+
+    def set_contour_freq(self, hz: int) -> None:
+        hz = max(10, min(3200, int(hz)))
+        self.state["contour_freq"] = hz
+        self._send(f"CO01{hz:04d};")                        # CO P2=1 freq 0010-3200
+        self._emit_state()
+
+    def set_apf(self, on: bool) -> None:
+        self.state["apf"] = 1 if on else 0
+        self._send(f"CO020001;" if on else "CO020000;")     # CO P2=2 APF on/off
+        self._emit_state()
+
+    def set_apf_freq(self, v: int) -> None:
+        v = max(0, min(50, int(v)))                         # CO P2=3: 0-50 = -250..+250 Hz
+        self.state["apf_freq"] = v
+        self._send(f"CO03{v:04d};")
+        self._emit_state()
+
+    # -- TX ops: TXW / quick-split / parametric mic EQ -----------------------
+    def set_txw(self, on: bool) -> None:
+        self.state["txw"] = 1 if on else 0                  # listen on the TX freq during split
+        self._send(f"TS{1 if on else 0};")
+        self._emit_state()
+
+    def set_param_eq(self, on: bool) -> None:
+        self.state["param_eq"] = 1 if on else 0
+        self._send(f"PR1{2 if on else 1};")                 # PR P1=1 parametric mic EQ (1 off / 2 on)
+        self._emit_state()
+
+    def set_quick_split(self) -> None:
+        if self.state.get("connected"):
+            self._send("QS;")                               # one-touch split (VFO-B = VFO-A + offset)
+
+    # -- CW operating controls (CW modes) ------------------------------------
+    def set_bkin(self, on: bool) -> None:
+        self.state["bkin"] = 1 if on else 0
+        self._send(f"BI{1 if on else 0};")
+        self._emit_state()
+
+    def set_keyer(self, on: bool) -> None:
+        self.state["keyer"] = 1 if on else 0
+        self._send(f"KR{1 if on else 0};")
+        self._emit_state()
+
+    def set_key_speed(self, wpm: int) -> None:
+        wpm = max(4, min(60, int(wpm)))
+        self.state["key_speed"] = wpm
+        self._send(f"KS{wpm:03d};")
+        self._emit_state()
+
+    def set_key_pitch(self, code: int) -> None:
+        code = max(0, min(75, int(code)))                   # KP 00-75 = 300-1050 Hz (10 Hz)
+        self.state["key_pitch"] = code
+        self._send(f"KP{code:02d};")
+        self._emit_state()
+
+    def set_spot(self, on: bool) -> None:
+        self.state["spot"] = 1 if on else 0
+        self._send(f"CS{1 if on else 0};")                  # CW spot tone (RX zero-beat aid)
+        self._emit_state()
+
+    def set_zero_in(self) -> None:
+        if self.state.get("mode_name") in ("CW-USB", "CW-LSB"):
+            self._send("ZI;")                               # auto zero-in on the received CW signal
+
+    # -- operating: scan / fast tuning step ----------------------------------
+    def set_scan(self, direction: int) -> None:
+        direction = max(0, min(2, int(direction)))          # 0 off / 1 up / 2 down
+        self.state["scan"] = direction
+        self._send(f"SC{direction};")
+        self._emit_state()
+
+    def set_fast(self, on: bool) -> None:
+        self.state["fast"] = 1 if on else 0
+        self._send(f"FS{1 if on else 0};")
         self._emit_state()
 
     def set_tuner(self, on: bool) -> None:

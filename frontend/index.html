@@ -228,6 +228,19 @@
         <button class="key" data-act="vfo" data-code="176">SWAP</button>
       </div>
     </div>
+
+    <div class="grp" id="opsGrp">
+      <div class="grp-title">OPERATING</div>
+      <div class="row step-row">
+        <span class="step-label">SCAN</span>
+        <button class="key scan" data-act="scan" data-dir="0">STOP</button>
+        <button class="key scan" data-act="scan" data-dir="1">▲ UP</button>
+        <button class="key scan" data-act="scan" data-dir="2">▼ DN</button>
+      </div>
+      <div class="row">
+        <button class="key tog" data-act="toggle" data-fn="fast" id="fastBtn" title="Fast tuning step (dial)">FAST</button>
+      </div>
+    </div>
     </div><!-- /radio -->
 
     <div class="panel hide" data-p="rx">
@@ -274,6 +287,7 @@
         <button class="key tog" data-act="rxfunc" data-fn="comp" id="compBtn">COMP</button>
         <button class="key tog" data-act="rxfunc" data-fn="vox" id="voxBtn">VOX</button>
         <button class="key tog" data-act="rxfunc" data-fn="mon" id="monBtn">MON</button>
+        <button class="key tog" data-act="toggle" data-fn="param_eq" id="paramEqBtn" title="Parametric microphone equalizer on/off">P-EQ</button>
       </div>
       <div class="row step-row">
         <span class="step-label">TBW</span>
@@ -299,6 +313,8 @@
       <div class="grp-title">SPLIT · RIT</div>
       <div class="row">
         <button class="key tog" data-act="splittog" id="splitBtn">SPLIT</button>
+        <button class="key" data-act="quick_split" id="qsplitBtn" title="One-touch split (VFO-B = VFO-A + offset)">QUICK SPL</button>
+        <button class="key tog" data-act="toggle" data-fn="txw" id="txwBtn" title="Listen on the TX frequency while split (hold)">TXW</button>
       </div>
       <div class="row step-row">
         <span class="step-label">DUP</span>
@@ -342,6 +358,40 @@
       <label class="sl"><span>PBT1</span><input type="range" min="0" max="255" id="pbt1" data-target="pbt1"><b class="sl-val" id="pbt1Val">128</b></label>
       <label class="sl"><span>PBT2</span><input type="range" min="0" max="255" id="pbt2" data-target="pbt2"><b class="sl-val" id="pbt2Val">128</b></label>
       <label class="sl"><span>NOTCH</span><input type="range" min="0" max="255" id="mnotch_pos" data-target="mnotch_pos"><b class="sl-val" id="mnotch_posVal">128</b></label>
+    </div>
+
+    <div class="grp" id="widthGrp">
+      <div class="grp-title">WIDTH</div>
+      <div class="row step-row">
+        <span class="step-label">WIDTH</span>
+        <button class="key" data-act="width_d" data-d="-1" title="Narrower DSP passband">&minus;</button>
+        <span class="span-val" id="widthVal">—</span>
+        <button class="key" data-act="width_d" data-d="1" title="Wider DSP passband">+</button>
+      </div>
+    </div>
+
+    <div class="grp" id="contourGrp">
+      <div class="grp-title">CONTOUR</div>
+      <div class="row"><button class="key tog" data-act="toggle" data-fn="contour" id="contourBtn" title="Contour filter in / out">CONTOUR</button></div>
+      <label class="sl"><span>FREQ</span><input type="range" min="10" max="3200" step="10" id="contour_freq" data-act="contour_freq"><b class="sl-val" id="contour_freqVal">—</b></label>
+    </div>
+
+    <div class="grp" id="apfGrp">
+      <div class="grp-title">APF (CW)</div>
+      <div class="row"><button class="key tog" data-act="toggle" data-fn="apf" id="apfBtn" title="Audio Peak Filter in / out">APF</button></div>
+      <label class="sl"><span>FREQ</span><input type="range" min="0" max="50" step="1" id="apf_freq" data-act="apf_freq"><b class="sl-val" id="apf_freqVal">0 Hz</b></label>
+    </div>
+
+    <div class="grp" id="cwGrp">
+      <div class="grp-title">CW</div>
+      <div class="row wrap">
+        <button class="key tog" data-act="toggle" data-fn="bkin" id="bkinBtn" title="CW break-in (QSK)">BK-IN</button>
+        <button class="key tog" data-act="toggle" data-fn="keyer" id="keyerBtn" title="Internal electronic keyer">KEYER</button>
+        <button class="key tog" data-act="toggle" data-fn="spot" id="spotBtn" title="CW spot tone (zero-beat aid)">SPOT</button>
+        <button class="key" data-act="zero_in" id="zeroInBtn" title="Auto zero-in on the received CW signal">ZERO-IN</button>
+      </div>
+      <label class="sl"><span>WPM</span><input type="range" min="4" max="60" step="1" id="key_speed" data-act="key_speed"><b class="sl-val" id="key_speedVal">20</b></label>
+      <label class="sl"><span>PITCH</span><input type="range" min="0" max="75" step="1" id="key_pitch" data-act="key_pitch"><b class="sl-val" id="key_pitchVal">700 Hz</b></label>
     </div>
     </div><!-- /dsp -->
 

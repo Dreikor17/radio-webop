@@ -492,7 +492,10 @@ class YaesuSimTransport(Transport):
         self._levels = {"PC": "025", "AG0": "140", "RG0": "200",   # power(W)/AF/RF: so the
                         "SQ0": "015", "MG": "050", "GT0": "2"}      # sim reports real levels
         # operating toggles/enums echoed on read (key = command prefix, value = param field)
-        self._ops = {"NA0": "0", "CT0": "0", "CN00": "012", "CN01": "000", "OS0": "0"}
+        self._ops = {"NA0": "0", "CT0": "0", "CN00": "012", "CN01": "000", "OS0": "0",
+                     "SH0": "00", "CO00": "0000", "CO01": "0300", "CO02": "0000", "CO03": "0025",
+                     "ML0": "000", "ML1": "030", "PR0": "1", "PR1": "1", "TS": "0",
+                     "BI": "0", "KR": "0", "KS": "020", "KP": "40", "CS": "0", "SC": "0", "FS": "0"}
 
     @property
     def name(self) -> str:
