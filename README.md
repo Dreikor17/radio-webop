@@ -36,15 +36,28 @@ with no radio attached. Connect over **USB** or **LAN** when you're ready.
   audio 50003), for radios with an Ethernet port (IC-9700, IC-7300MK2, …).
 - **Simulator** — auto-connects on load.
 
-## Run it (Windows)
+## Install & run (Windows)
+
+**One-click:**
+
+1. Double-click **`install.bat`** — it checks for **Python** (installs 3.12 via `winget`
+   if you don't have it), creates a local environment, installs everything, and adds a
+   **"Radio WebOp" desktop shortcut**. Re-run it anytime to **update**.
+2. Double-click the **desktop shortcut** (or **`run.bat`**) to start it — your browser
+   opens at <http://localhost:8700>.
+
+No Python or command line needed. `install.bat` is safe to run again; on a git checkout it
+also pulls the latest code before updating dependencies.
+
+<details><summary>Prefer the command line?</summary>
 
 ```
 pip install -r requirements.txt
-run.bat
+python run.py
 ```
+</details>
 
-Then open <http://localhost:8700>. Pick your **radio model**, choose a transport
-(Simulator / a COM port / LAN), and Connect.
+Pick your **radio model**, choose a transport (Simulator / a COM port / LAN), and Connect.
 
 - **USB:** set the radio's CI-V on USB, pick the COM port + baud, Connect.
 - **LAN:** on the radio set Network Function ON + a network user/password, leave

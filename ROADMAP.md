@@ -7,6 +7,12 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.18 — one-click Windows install
+- **`install.bat`** (one-click install/update): checks for Python first (installs 3.12 via
+  `winget` if missing), builds an isolated `.venv`, installs deps, verifies the import, and
+  makes a desktop shortcut. Idempotent — re-run to update (git pull on a clean checkout).
+  `run.bat` now uses the `.venv`. See [README](README.md#install--run-windows).
+
 ### v0.2.17 — Yaesu FT‑891
 - **FT‑891 profile** (HF/50 MHz mobile, typically over a Digirig) on the shared Yaesu CAT driver:
   160–6 m, 10 modes, IPO/AMP preamp, RF ATT, 5–100 W, S/PO/SWR/ALC/COMP/ID meters; COM‑only, AF

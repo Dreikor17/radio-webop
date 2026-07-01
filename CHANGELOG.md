@@ -3,6 +3,25 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.18] — 2026-07-01
+
+One-click install/update on Windows — no Python or command line needed.
+
+### Added
+- **`install.bat` — one-click install / update.** Checks for **Python first** (installs
+  Python 3.12 via `winget` if none is found), then sets up an isolated local environment
+  (`.venv`), installs/upgrades all dependencies, verifies the app imports, and creates a
+  **"Radio WebOp" desktop shortcut**. Safe to re-run: on a git checkout it `git pull`s the
+  latest code (only when your working tree is clean) before refreshing dependencies. The
+  optional `sounddevice` audio package is best-effort — if it can't install, the core app
+  still installs and runs.
+- **`setup.ps1`** — the PowerShell engine behind `install.bat` (finds/ranks Python, prefers
+  versions with reliable prebuilt wheels, skips Microsoft Store stubs).
+
+### Changed
+- **`run.bat` now uses the local `.venv`** created by the installer (falling back to system
+  Python if you never ran it), so the one-click run is fully self-contained.
+
 ## [0.2.17] — 2026-06-30
 
 Adds the **Yaesu FT‑891** (HF/50 MHz mobile), typically reached over a Digirig (USB‑serial CAT
