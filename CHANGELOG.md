@@ -23,6 +23,8 @@ part of an ongoing push to surface **every** setting the rig has (see the audit 
   CW-LSB, CW-USB, FM, RTTY-LSB, RTTY-USB, C4FM, DATA-LSB, DATA-USB, DATA-FM** (was CW/CW-R/RTTY/
   RTTY-R/DATA-L/DATA-U). Icom labels are unchanged. New `Capabilities` flags `narrow` / `fm_tone`
   gate the new controls; the server passes radio-specific mode labels straight through.
+- **Band-plan overlay is now on by default** — new sessions start with the scope band-plan +
+  color-key legend enabled (an explicit prior off-choice is still respected).
 
 ## [0.2.18] — 2026-07-01
 
