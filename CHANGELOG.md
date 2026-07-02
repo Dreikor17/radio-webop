@@ -3,6 +3,22 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.23] — 2026-07-02
+
+CW decode window as a texting‑style chat, plus a self‑correcting header version.
+
+### Added
+- **CW chat as a texting UI** — the decoded‑CW window now reads like a messaging thread: received
+  Morse appears in **grey bubbles on the left**, and messages you transmit appear in **blue bubbles
+  on the right**, each with a time stamp. The live in‑progress decode shows in amber inside the
+  current receive bubble until it settles, then becomes part of that bubble. A new receive bubble
+  starts after a gap in the received signal.
+
+### Fixed
+- **Header version no longer drifts** — the version shown in the top bar is now driven by the
+  backend (`/api/version`), so it always matches the running build instead of a hand‑edited literal
+  (it had been stuck at `v0.2.14`).
+
 ## [0.2.22] — 2026-07-02
 
 Scope frequency clarity, auto RX audio on COM, and a CW‑transmit mode fix.

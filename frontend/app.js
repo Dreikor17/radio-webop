@@ -1516,6 +1516,7 @@
     if (!link) return;
     function check(retry) {
       fetch("/api/version").then((r) => r.json()).then((v) => {
+        if (v.current) { const n = $("verNow"); if (n) n.textContent = "v" + v.current; }   // source of truth = backend __version__
         if (v.update_available && v.url) {
           link.href = v.url;
           link.textContent = "↑ " + (v.latest || "update");

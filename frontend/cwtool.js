@@ -137,9 +137,35 @@
   let worker = null, workerReady = false, HOP = 48;      // HOP (frame -> sample) comes from the worker
   let capNode = null, ticker = 0, workletReady = false;  // realtime capture worklet
   let buf = new Float32Array(21 * SR), pendingLen = 0;   // UNcommitted audio @ 3200 Hz (room above MAX_SEGMENT)
-  let committed = "", pendingText = "", lastPeak = 0;
+  let pendingText = "", lastPeak = 0;
+  let messages = [], rxOpen = false;                     // texting chat log: {dir:"rx"|"tx", text, t}
   let inflight = false, analysisLen = 0, reqId = 0;
   const out = $("cwOut"), hint = $("cwHint"), statusEl = $("cwStatus");
+
+  // ---- chat log helpers: decoded RX = grey bubbles left, transmitted = blue bubbles right ----
+  function fmtT() { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function trimMsgs() { if (messages.length > 80) messages.splice(0, messages.length - 80); }
+  function openRx() { if (!rxOpen) { messages.push({ dir: "rx", text: "", t: fmtT() }); rxOpen = true; trimMsgs(); } }
+  function closeRx() {                                    // finalize the current RX bubble (on silence / before a TX)
+    if (!rxOpen) return;
+    const m = messages[messages.length - 1];
+    if (m && m.dir === "rx" && !m.text) messages.pop();  // drop an RX bubble that never confirmed any text
+    rxOpen = false;
+  }
+  function addRxText(seg) {                               // append a committed segment to the open RX bubble
+    if (!seg) return;
+    openRx();
+    const m = messages[messages.length - 1];
+    m.text += (m.text ? " " : "") + seg;
+    if (m.text.length > 500) m.text = m.text.slice(-480);
+  }
+  function addTx(text) {                                  // a transmitted message = its own blue bubble
+    const t = String(text || "").toUpperCase().trim();
+    if (!t) return;
+    closeRx();
+    messages.push({ dir: "tx", text: t, t: fmtT() });
+    trimMsgs(); render();
+  }
 
   function setStatus(s) { if (statusEl) statusEl.textContent = s; }
 
@@ -163,7 +189,7 @@
     const ctx = ra.ctx(), bus = ra.bus();
     if (!ctx || !bus) return;
     stopCapture();
-    pendingLen = 0; committed = ""; pendingText = ""; lastPeak = 0;
+    pendingLen = 0; pendingText = ""; lastPeak = 0; messages = []; rxOpen = false;
     inflight = false; analysisLen = 0;
     render();
     try {
@@ -201,8 +227,9 @@
     if (pk < SILENCE) {                           // no signal: keep a short lead, never decode pure noise
       const keep = Math.min(pendingLen, (0.5 * SR) | 0);
       if (pendingLen > keep) { buf.copyWithin(0, pendingLen - keep, pendingLen); pendingLen = keep; }
-      pendingText = ""; render(); return;
+      pendingText = ""; closeRx(); render(); return;     // RX went quiet -> finalize the current bubble
     }
+    openRx();                                     // RX signal present -> ensure a bubble to receive it
     analysisLen = Math.min(pendingLen, MAX_SEGMENT);
     const L = Math.max(analysisLen, MIN_PAD_S * SR);     // pad short analyses with trailing silence
     const a = new Float32Array(L);
@@ -240,10 +267,7 @@
     const confirmedLen = split ? split.sample : (pendingLen >= MAX_SEGMENT ? analysisLen : 0);
     if (confirmedLen >= MIN_CONFIRMED) {
       const segText = split ? norm(trimToFrame(cs, split.endFrame)) : pendingText;   // forced: whole analysis
-      if (segText) {
-        committed += (committed && !committed.endsWith(" ") ? " " : "") + segText;
-        if (committed.length > 1400) committed = committed.slice(-1200);
-      }
+      if (segText) addRxText(segText);            // append to the current grey RX bubble
       buf.copyWithin(0, confirmedLen, pendingLen); pendingLen -= confirmedLen;       // slide past committed audio
       pendingText = "";                          // cleared so committed text never appears twice in one tick
     }
@@ -252,8 +276,17 @@
 
   function render() {
     if (out) {
-      out.innerHTML = esc(committed) +
-        (pendingText ? (committed ? " " : "") + '<span class="cw-live">' + esc(pendingText) + "</span>" : "");
+      let html = "";
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        let inner = esc(m.text);
+        if (m.dir === "rx" && rxOpen && i === messages.length - 1 && pendingText)   // live decode tail
+          inner += (m.text ? " " : "") + '<span class="cw-live">' + esc(pendingText) + "</span>";
+        if (!inner) continue;                     // skip an empty (just-opened) RX bubble
+        html += '<div class="cw-msg-wrap ' + m.dir + '"><div class="cw-msg-lbl">' + m.t +
+          '</div><div class="cw-msg ' + m.dir + '">' + inner + "</div></div>";
+      }
+      out.innerHTML = html;
       out.scrollTop = out.scrollHeight;
     }
     if (hint) {
@@ -266,7 +299,7 @@
   }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
-  $("cwClear").addEventListener("click", () => { committed = ""; pendingText = ""; render(); });
+  $("cwClear").addEventListener("click", () => { messages = []; rxOpen = false; pendingText = ""; render(); });
 
   // ---- coder (text -> Morse sidetone; never transmits) ----
   $("cwPlay").addEventListener("click", () => playMorse($("cwSend").value));
@@ -323,6 +356,7 @@
       if (!text.trim()) { setTxHint("type a message first"); return; }
       const wpm = Math.max(5, Math.min(40, +$("cwWpmSet").value || 18));
       setTxHint("");
+      addTx(text);                                  // show our sent message as a blue bubble
       rc.send({ action: "cw_tx", text, wpm });
     });
   }

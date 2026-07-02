@@ -7,6 +7,12 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.23 — CW chat as a texting UI
+- The decoded‑CW window now reads like a messaging thread: **received in grey bubbles (left),
+  transmitted in blue bubbles (right)**, time‑stamped, with the live in‑progress decode shown in
+  amber inside the current receive bubble. Also: the **header version is now driven by
+  `/api/version`** so it can't drift out of sync with the build.
+
 ### v0.2.22 — scope frequency scale + cursor readout, auto RX audio, CW-TX mode fix
 - Scope shows the **centre (tuned) + edge frequencies** and a **cursor frequency readout** on hover
   (CI-V + AF scopes). **RX audio auto-starts on COM/USB connect**. **CW encoder TX** now works in any
