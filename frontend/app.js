@@ -10,7 +10,7 @@
   let radios = [], currentRadio = null;          // radio profiles from /api/radios
   let pttIntended = false, pttKeyedAt = 0;       // PTT toggle state + time keyed
   const LEVELS = ["af", "rf", "sql", "rfpwr", "nb_level", "nr_level", "pbt1", "pbt2", "mnotch_pos",
-                  "mic", "comp_level", "vox_gain", "mon_level"];
+                  "mic", "comp_level", "vox_gain", "mon_level", "cw_pitch", "keyer_speed"];
 
   // ---- frequency formatting (Icom dotted readout) ----
   function formatFreq(hz) {
@@ -186,6 +186,7 @@
     if ($("narBtn")) $("narBtn").classList.toggle("on", (s.narrow || 0) > 0);
     syncFmPanel(s);
     syncExtPanel(s);
+    syncIcomCw(s);
 
     // level sliders (don't fight an active drag) + value readouts
     for (const t of LEVELS) {
@@ -330,14 +331,35 @@
     rs.addEventListener("change", () => send({ action: "rpt_shift", value: +rs.value }));
   }
 
+  const FM_FAMILY = ["FM", "FM-N", "DATA-FM", "C4FM"];
   function syncFmPanel(s) {
     const cap = (currentRadio && currentRadio.capabilities) || {};
-    const show = !!cap.fm_tone && FM_MODES.includes(s.mode_name);
+    const show = !!cap.fm_tone && FM_FAMILY.includes(s.mode_name);
     const g = $("fmGrp"); if (g) g.style.display = show ? "block" : "none";   // beat the #fmGrp{display:none} default
     if (!show) return;
+    // DCS + repeater-shift only where the radio has them (Yaesu); Icom does tone/TSQL only,
+    // and uses the SPLIT·RIT duplex control for shift.
+    const dcs = cap.fm_dcs !== false;
+    [...$("toneMode").options].forEach(o => { if (o.value === "3" || o.value === "4") o.hidden = !dcs; });
+    const hideRow = (id, hide) => { const e = $(id); if (e && e.parentElement) e.parentElement.style.display = hide ? "none" : ""; };
+    hideRow("dcsCode", !dcs); hideRow("rptShift", !dcs);
     const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = String(v); };
     set("toneMode", s.tone_mode || 0); set("toneFreq", s.tone_freq || 0);
     set("dcsCode", s.dcs_code || 0); set("rptShift", s.rpt_shift || 0);
+  }
+
+  // ---- Icom CW / filter group: APF, break-in, CW pitch/speed, filter shape ----
+  const APF_LABELS = ["OFF", "WIDE", "MID", "NAR"], BKIN_LABELS = ["OFF", "SEMI", "FULL"];
+  function syncIcomCw(s) {
+    const cap = (currentRadio && currentRadio.capabilities) || {};
+    const g = $("icomCwGrp"); if (!g) return;
+    const cw = ["CW", "CW-R"].includes(s.mode_name);       // Icom CW mode names
+    g.style.display = (cap.icom_cw && cw) ? "" : "none";
+    if (!(cap.icom_cw && cw)) return;
+    const apf = s.apf || 0, bkin = s.bkin || 0;
+    const ab = $("apfCycBtn"); if (ab) { ab.textContent = "APF: " + APF_LABELS[apf]; ab.classList.toggle("on", apf > 0); }
+    const bb = $("bkinCycBtn"); if (bb) { bb.textContent = "BK-IN: " + BKIN_LABELS[bkin]; bb.classList.toggle("on", bkin > 0); }
+    const fs = $("fshapeBtn"); if (fs) { fs.textContent = (s.filter_shape ? "SOFT" : "SHARP"); fs.classList.toggle("on", !!s.filter_shape); }
   }
 
   // ---- extra operating controls: WIDTH / CONTOUR / APF / CW / TXW / scan (Yaesu) ----
@@ -431,6 +453,8 @@
     else if (act === "scan") send({ action: "scan", dir: +b.dataset.dir });
     else if (act === "zero_in") send({ action: "zero_in" });
     else if (act === "quick_split") send({ action: "quick_split" });
+    else if (act === "apf_cyc") send({ action: "apf_lvl", v: (((state.apf || 0) + 1) % 4) });   // Icom APF OFF/WIDE/MID/NAR
+    else if (act === "bkin_cyc") send({ action: "bkin_lvl", v: (((state.bkin || 0) + 1) % 3) });  // Icom BK-IN OFF/SEMI/FULL
     else if (act === "rxfunc") send({ action: "rx_func", name: b.dataset.fn, on: !((state[b.dataset.fn] || 0) > 0) });
     else if (act === "agc") send({ action: "agc", mode: +b.dataset.mode });
     else if (act === "mnotch_w") send({ action: "mnotch_w", width: +b.dataset.width });
@@ -469,7 +493,12 @@
   $("step").onchange = () => { step = +$("step").value; };
 
   // level sliders (power shown as %, others 0–255)
-  function fmtLevel(t, v) { return t === "rfpwr" ? Math.round(v / 255 * 100) + "%" : "" + v; }
+  function fmtLevel(t, v) {
+    if (t === "rfpwr") return Math.round(v / 255 * 100) + "%";
+    if (t === "cw_pitch") return (300 + Math.round(v / 255 * 600)) + " Hz";   // Icom 14 09: 300-900 Hz
+    if (t === "keyer_speed") return (6 + Math.round(v / 255 * 42)) + " wpm";    // Icom 14 0C: 6-48 WPM
+    return "" + v;
+  }
   function setFill(el) {
     const mn = +el.min || 0, mx = +el.max || 100;
     el.style.setProperty("--p", Math.round((el.value - mn) / (mx - mn) * 100) + "%");
@@ -874,6 +903,7 @@
     updateConnFields();
     renderMenu(p);
     syncExtPanel(state);         // show/hide the WIDTH/CONTOUR/APF/CW/ops groups for this radio+mode
+    syncIcomCw(state);           // Icom CW/filter group visibility for this radio+mode
     applyTitles();
   }
   $("radioSel").addEventListener("change", () => {

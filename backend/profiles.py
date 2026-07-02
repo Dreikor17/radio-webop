@@ -79,8 +79,10 @@ class Capabilities:
     cw_tx: bool = False
     menus: bool = False
     narrow: bool = False        # NAR/WIDE IF-filter toggle (Yaesu NA)
-    fm_tone: bool = False       # FM Tone/DCS + repeater-shift panel (Yaesu CT/CN/OS), FM modes only
-    ext_ops: bool = False       # extra operating controls: WIDTH/CONTOUR/APF/monitor/CW/TXW/scan (Yaesu)
+    fm_tone: bool = False       # FM Tone/DCS panel, FM modes only
+    fm_dcs: bool = True         # the FM panel exposes DCS (Yaesu) — False on Icom (CI-V has no DTCS)
+    ext_ops: bool = False       # extra Yaesu operating controls: WIDTH/CONTOUR/APF/CW/TXW/scan
+    icom_cw: bool = False       # Icom CW/filter group: APF/break-in/pitch/keyer-speed/filter-shape
 
 
 @dataclass
@@ -291,6 +293,19 @@ IC7300MK2 = RadioProfile(
     steps=[(1, "1 Hz"), (10, "10 Hz"), (100, "100 Hz"), (1000, "1 kHz"),
            (5000, "5 kHz"), (9000, "9 kHz"), (10000, "10 kHz")],
     default_step=100,
+    has_tuner=True,                               # IC-7300MK2 has an internal ATU (1C 01)
+    preamp_labels=["OFF", "P.AMP1", "P.AMP2"],    # 16 02: two preamp stages
+    capabilities=Capabilities(
+        preamp=True, att=True, tuner=True, dual_watch=False,
+        vfo_select=True,                          # Icom CI-V has an active-VFO selector
+        vfo_swap=True, split=True, rit=True, duplex=True,
+        rx_dsp=["nb", "nr", "anotch", "mnotch"],
+        tx_funcs=["comp", "vox", "mon"], tbw=True,
+        meters=["S", "PO", "SWR", "ALC", "COMP", "Vd", "Id"],
+        cw_tx=True, menus=True,
+        fm_tone=True, fm_dcs=False,               # FM repeater tone/TSQL (no DTCS over CI-V)
+        icom_cw=True,                             # APF / break-in / CW pitch+speed / filter shape
+    ),
     menu=IC7300MK2_MENU,
     connect_help=[
         {"title": "USB (CI-V)", "items": [

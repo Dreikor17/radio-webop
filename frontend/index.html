@@ -393,6 +393,17 @@
       <label class="sl"><span>WPM</span><input type="range" min="4" max="60" step="1" id="key_speed" data-act="key_speed"><b class="sl-val" id="key_speedVal">20</b></label>
       <label class="sl"><span>PITCH</span><input type="range" min="0" max="75" step="1" id="key_pitch" data-act="key_pitch"><b class="sl-val" id="key_pitchVal">700 Hz</b></label>
     </div>
+
+    <div class="grp" id="icomCwGrp">
+      <div class="grp-title">CW / FILTER</div>
+      <div class="row wrap">
+        <button class="key" data-act="apf_cyc" id="apfCycBtn" title="Audio Peak Filter: OFF / WIDE / MID / NAR">APF: OFF</button>
+        <button class="key" data-act="bkin_cyc" id="bkinCycBtn" title="CW break-in: OFF / SEMI / FULL">BK-IN: OFF</button>
+        <button class="key tog" data-act="toggle" data-fn="filter_shape" id="fshapeBtn" title="IF filter shape (SHARP / SOFT)">SOFT</button>
+      </div>
+      <label class="sl"><span>PITCH</span><input type="range" min="0" max="255" id="cw_pitch" data-target="cw_pitch"><b class="sl-val" id="cw_pitchVal">600 Hz</b></label>
+      <label class="sl"><span>WPM</span><input type="range" min="0" max="255" id="keyer_speed" data-target="keyer_speed"><b class="sl-val" id="keyer_speedVal">20</b></label>
+    </div>
     </div><!-- /dsp -->
 
     <div class="panel hide" data-p="setup">

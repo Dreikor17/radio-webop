@@ -49,7 +49,8 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 LEVEL_TARGETS = {"af": 0x01, "rf": 0x02, "sql": 0x03, "rfpwr": 0x0A,
                  "nr_level": 0x06, "nb_level": 0x12, "pbt1": 0x07, "pbt2": 0x08,
                  "mnotch_pos": 0x0D,
-                 "mic": 0x0B, "comp_level": 0x0E, "mon_level": 0x15, "vox_gain": 0x16}
+                 "mic": 0x0B, "comp_level": 0x0E, "mon_level": 0x15, "vox_gain": 0x16,
+                 "cw_pitch": 0x09, "keyer_speed": 0x0C}   # Icom CW pitch / keyer speed
 
 radio = Radio()
 
@@ -451,6 +452,12 @@ def _handle_cmd(cmd: dict) -> None:
             radio.set_scan(int(cmd["dir"]))
         elif action == "fast":
             radio.set_fast(bool(cmd["on"]))
+        elif action == "apf_lvl":
+            radio.set_apf_lvl(int(cmd["v"]))
+        elif action == "bkin_lvl":
+            radio.set_bkin_lvl(int(cmd["v"]))
+        elif action == "filter_shape":
+            radio.set_filter_shape(bool(cmd["on"]))
         elif action == "ptt":
             radio.set_ptt(bool(cmd["tx"]))
         elif action == "cw_tx":

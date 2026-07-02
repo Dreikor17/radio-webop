@@ -161,6 +161,40 @@ def rit_from_bcd(data: bytes) -> int:
     return -mag if sign else mag
 
 
+# Standard CTCSS tone frequencies (Hz). Index = the tone number used across the app
+# (same order the frontend's CTCSS list uses, so an index maps to the same tone on any radio).
+CTCSS_TONES = [67.0, 69.3, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8, 97.4,
+               100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8, 136.5,
+               141.3, 146.2, 151.4, 156.7, 159.8, 162.2, 165.5, 167.9, 171.3, 173.8,
+               177.3, 179.9, 183.5, 186.2, 189.9, 192.8, 196.6, 199.5, 203.5, 206.5,
+               210.7, 218.1, 225.7, 229.1, 233.6, 241.8, 250.3, 254.1]
+
+
+def tone_to_bcd(hz: float) -> bytes:
+    """CTCSS tone (Hz) -> 3 little-endian BCD bytes for Icom 1B 00/01 (value = round(hz*10),
+    6 digits, LSB nibble first — same byte order as freq_to_bcd). 88.5 Hz -> 85 08 00."""
+    v = int(round(hz * 10))
+    d = [0] * 6
+    for i in range(6):
+        d[i] = v % 10
+        v //= 10
+    return bytes([(d[1] << 4) | d[0], (d[3] << 4) | d[2], (d[5] << 4) | d[4]])
+
+
+def bcd_to_tone_index(data: bytes):
+    """3 LE BCD bytes -> the matching CTCSS_TONES index, or None."""
+    if len(data) < 2:
+        return None
+    v = 0
+    for b in range(min(3, len(data)) - 1, -1, -1):
+        v = v * 100 + ((data[b] >> 4) & 0x0F) * 10 + (data[b] & 0x0F)
+    hz = v / 10.0
+    for i, t in enumerate(CTCSS_TONES):
+        if abs(t - hz) < 0.05:
+            return i
+    return None
+
+
 def offset_to_bcd(hz: int) -> bytes:
     """Duplex offset (command 0C/0D): 3-byte BCD, 100 Hz LSB. Digits are
     1kHz/100Hz | 100kHz/10kHz | 10MHz/1MHz — NOT the 5-byte main-freq layout."""

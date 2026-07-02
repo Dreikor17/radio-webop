@@ -3,6 +3,29 @@
 All notable changes to **Radio WebOp** are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [0.2.21] — 2026-07-01
+
+Fills in the IC-7300MK2 operating controls (the "expose every setting" pass, now for Icom). The
+Icom handler was already broad, so this adds the notable gaps — all adaptive by mode.
+
+### Added
+- **Internal antenna tuner** — the TUNER (in/out) + TUNE buttons now work on the IC-7300MK2
+  (`1C 01`); `has_tuner` is per‑profile so the IC-9700 (no ATU) is unaffected.
+- **FM Tone / TSQL** — repeater tone + tone‑squelch on/off (`16 42`/`16 43`) and CTCSS tone
+  frequency (`1B 00`, all 50 tones), in the FM Tone panel (now adaptive: the DCS options + repeater
+  shift hide on Icom, which has no DTCS over CI‑V and uses the SPLIT·RIT duplex instead).
+- **Icom CW / filter group** (CW mode) — **APF** OFF/WIDE/MID/NAR (`16 32`), **break‑in**
+  OFF/SEMI/FULL (`16 47`), **CW pitch** 300–900 Hz (`14 09`), **keyer speed** 6–48 WPM (`14 0C`),
+  and **IF filter shape** SHARP/SOFT (`16 56`).
+- **3‑state preamp** OFF / P.AMP1 / P.AMP2 (`16 02`) for the IC-7300MK2.
+
+### Notes
+- New `Capabilities` flags `fm_dcs` (Yaesu‑only DCS) and `icom_cw`. Verify on the real radio
+  (read → echo), especially the CTCSS tone BCD format. Remaining items (scan, memory channels,
+  voice/keyer memories, scope controls, …) are tracked in
+  [docs/IC-7300MK2-SETTINGS-AUDIT.md](docs/IC-7300MK2-SETTINGS-AUDIT.md). Most commands are shared
+  with the IC-9700, ready to enable there later.
+
 ## [0.2.20] — 2026-07-01
 
 Rounds out the FT-991A operating controls so the web UI mirrors the radio's front panel

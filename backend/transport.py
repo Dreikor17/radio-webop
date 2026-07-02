@@ -347,6 +347,16 @@ class SimTransport(Transport):
                 self._scope_cmd(s, d)
             elif c == 0x1A and s == 0x05:                   # SET-menu (1A 05 <data-number>)
                 self._menu_cmd(d)
+            elif c == 0x1C and s == 0x01:                   # internal antenna tuner
+                if d:
+                    self.tuner = 1 if d[0] in (1, 2) else 0; self._ok()
+                else:
+                    self._emit(0x1C, 0x01, bytes([getattr(self, "tuner", 0)]))
+            elif c == 0x1B and s in (0x00, 0x01):           # FM repeater tone / TSQL frequency
+                if d:
+                    self._tone_bcd = bytes(d); self._ok()
+                else:
+                    self._emit(0x1B, s, getattr(self, "_tone_bcd", civ.tone_to_bcd(88.5)))
             else:
                 self._ok()
 

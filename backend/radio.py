@@ -33,14 +33,16 @@ PTT_TIMEOUT = 120              # PTT failsafe: auto-unkey after this many second
 # CI-V 0x14 level sub-command -> state key
 LEVEL_KEYS = {0x01: "af", 0x02: "rf", 0x03: "sql", 0x0A: "rfpwr",
               0x06: "nr_level", 0x12: "nb_level", 0x07: "pbt1", 0x08: "pbt2", 0x0D: "mnotch_pos",
-              0x0B: "mic", 0x0E: "comp_level", 0x15: "mon_level", 0x16: "vox_gain"}  # M3 TX
+              0x0B: "mic", 0x0E: "comp_level", 0x15: "mon_level", 0x16: "vox_gain",  # M3 TX
+              0x09: "cw_pitch", 0x0C: "keyer_speed"}                 # CW pitch / keyer speed (0-255)
 # function on/off toggles: state key -> CI-V 0x16 sub-command
 RX_FUNCS = {"nb": 0x22, "nr": 0x40, "anotch": 0x41, "mnotch": 0x48,
             "comp": 0x44, "vox": 0x46, "mon": 0x45}                  # M3 TX adds COMP/VOX/MON
-# CI-V 0x16 read sub -> state key (preamp + RX DSP + TX toggles + TBW)
+# CI-V 0x16 read sub -> state key (preamp + RX DSP + TX toggles + TBW + APF/break-in/filter-shape)
 FUNC_KEYS = {0x02: "preamp", 0x22: "nb", 0x40: "nr", 0x41: "anotch",
              0x48: "mnotch", 0x12: "agc", 0x57: "mnotch_w",
-             0x44: "comp", 0x46: "vox", 0x45: "mon", 0x58: "tbw"}
+             0x44: "comp", 0x46: "vox", 0x45: "mon", 0x58: "tbw",
+             0x32: "apf", 0x47: "bkin", 0x56: "filter_shape"}
 
 ScopeCb = Callable[[civ.ScopeSweep], None]
 StateCb = Callable[[dict], None]
@@ -176,6 +178,8 @@ def fresh_state(p) -> dict:
         "key_speed": 20,     # keyer WPM 4-60
         "key_pitch": 40,     # CW pitch code 0-75 (300-1050 Hz; 40 = 700 Hz)
         "scan": 0, "fast": 0,
+        # Icom CW/filter controls (0-255 levels + toggles)
+        "cw_pitch": 128, "keyer_speed": 128, "filter_shape": 0,
         "has_scope": getattr(p, "has_scope", True),
         "cw_tx": False,                                  # CW message currently transmitting
         "has_cw_tx": bool(getattr(p, "cw_send", "")),    # this radio can send a typed CW message
@@ -321,15 +325,19 @@ class Radio:
         self._write(self._b(0x03))                       # read freq
         self._write(self._b(0x04))                       # read mode
         for sub in (0x02, 0x22, 0x40, 0x41, 0x48, 0x12, 0x57,
-                    0x44, 0x45, 0x46, 0x58):             # preamp + RX-DSP + (M3) COMP/MON/VOX/TBW
+                    0x44, 0x45, 0x46, 0x58,              # preamp + RX-DSP + (M3) COMP/MON/VOX/TBW
+                    0x32, 0x42, 0x43, 0x47, 0x56):       # APF / FM tone / TSQL / break-in / filter shape
             self._write(self._b(0x16, sub))
         for sub in (0x01, 0x02, 0x03, 0x0A, 0x06, 0x12, 0x07, 0x08, 0x0D,
-                    0x0B, 0x0E, 0x15, 0x16):             # AF/RF/SQL/PWR + RX-DSP + (M3) MIC/COMP/MON/VOX
+                    0x0B, 0x0E, 0x15, 0x16,              # AF/RF/SQL/PWR + RX-DSP + (M3) MIC/COMP/MON/VOX
+                    0x09, 0x0C):                         # CW pitch / keyer speed
             self._write(self._b(0x14, sub))
         self._write(self._b(0x21, 0x00))                 # RIT frequency
         self._write(self._b(0x21, 0x01))                 # RIT on/off
         self._write(self._b(0x0F))                       # split / duplex
         self._write(self._b(0x0C))                       # duplex offset
+        self._write(self._b(0x1C, 0x01))                 # internal antenna tuner status
+        self._write(self._b(0x1B, 0x00))                 # FM repeater tone frequency
 
         # Meter cadence: fast on direct serial (USB CI-V); easier on LAN, where each read is a
         # UDP round-trip to the radio, so don't outrun the reply rate.
@@ -472,9 +480,13 @@ class Radio:
             if s is not None:
                 self.state["att"] = s
                 changed = True
-        elif c == 0x16 and d:                            # functions (preamp / lock / RX DSP)
+        elif c == 0x16 and d:                            # functions (preamp / lock / RX DSP / FM tone)
             if s == 0x50:                                # dial lock (bool)
                 self.state["lock"] = bool(d[0]); changed = True
+            elif s == 0x42:                              # FM repeater tone (encode) on/off
+                self._tone_on = d[0]; self._recalc_tone_mode(); changed = True
+            elif s == 0x43:                              # FM tone squelch on/off
+                self._tsql_on = d[0]; self._recalc_tone_mode(); changed = True
             else:
                 key = FUNC_KEYS.get(s)
                 if key:
@@ -496,6 +508,12 @@ class Radio:
             raw = self._payload(s, d)
             if raw:
                 self.state["offset"] = civ.offset_from_bcd(raw); changed = True
+        elif c == 0x1C and s == 0x01 and d:              # internal antenna tuner status (00/01/02)
+            self.state["tuner"] = 1 if d[0] in (1, 2) else 0; changed = True
+        elif c == 0x1B and s == 0x00:                    # FM repeater tone frequency -> CTCSS index
+            idx = civ.bcd_to_tone_index(d)
+            if idx is not None:
+                self.state["tone_freq"] = idx; changed = True
         elif c == 0x1A and s == 0x05 and len(d) >= 2:    # 1A 05 <data-number> read response
             dataoff, level = self.profile.mod_dataoff, self.profile.lan_mod_level
             if len(d) >= 3 and d[0] == dataoff[0] and d[1] == dataoff[1] and self._modsrc_orig is None:
@@ -519,6 +537,10 @@ class Radio:
     def _recalc_filter_bw(self) -> None:
         bw = self.profile.filter_bw.get(self.state["mode_name"], {}).get(self.state["filter"], 2400)
         self.state["filter_bw"] = bw
+
+    def _recalc_tone_mode(self) -> None:
+        # Icom reports TONE (16 42) + TSQL (16 43) separately; fold them into the shared tone_mode.
+        self.state["tone_mode"] = 1 if getattr(self, "_tsql_on", 0) else (2 if getattr(self, "_tone_on", 0) else 0)
 
     # -- polling -------------------------------------------------------------
     def _poll(self) -> None:
@@ -570,15 +592,18 @@ class Radio:
         are turned at the front panel (connect reads these once; this keeps them live)."""
         self._write(self._b(0x11))                       # attenuator
         for sub in (0x02, 0x50, 0x22, 0x40, 0x41, 0x48,  # preamp, lock, NB, NR, A/M-notch,
-                    0x12, 0x57, 0x44, 0x45, 0x46, 0x58):  # AGC, notch-W, COMP, MON, VOX, TBW
+                    0x12, 0x57, 0x44, 0x45, 0x46, 0x58,   # AGC, notch-W, COMP, MON, VOX, TBW
+                    0x32, 0x42, 0x43, 0x47, 0x56):        # APF, FM tone, TSQL, break-in, filter shape
             self._write(self._b(0x16, sub))
         for sub in (0x01, 0x02, 0x03, 0x0A, 0x06, 0x12, 0x07, 0x08, 0x0D,  # AF/RF/SQL/PWR + NR/NB/PBT/notch,
-                    0x0B, 0x0E, 0x15, 0x16):              # MIC, COMP, MON, VOX level
+                    0x0B, 0x0E, 0x15, 0x16, 0x09, 0x0C):  # MIC, COMP, MON, VOX level + CW pitch/speed
             self._write(self._b(0x14, sub))
         self._write(self._b(0x21, 0x00))                 # RIT frequency
         self._write(self._b(0x21, 0x01))                 # RIT on/off
         self._write(self._b(0x0F))                       # split / duplex
         self._write(self._b(0x0C))                       # duplex offset
+        self._write(self._b(0x1C, 0x01))                 # internal antenna tuner status
+        self._write(self._b(0x1B, 0x00))                 # FM repeater tone frequency
 
     # -- button-level actions ------------------------------------------------
     def set_freq(self, hz: int) -> None:
@@ -649,12 +674,20 @@ class Radio:
         self._emit_state()
 
     def set_tuner(self, on: bool) -> None:
-        # Icom internal ATU isn't wired yet; has_tuner is False for the Icom profiles
-        # so the button is hidden. No-op keeps the shared action dispatch safe.
-        return
+        # Internal antenna tuner in / out of line (CI-V 1C 01: 00 off, 01 on). Does NOT transmit.
+        self.state["tuner"] = 1 if on else 0
+        self._write(self._b(0x1C, 0x01, bytes([1 if on else 0])))
+        self._emit_state()
 
     def tune_atu(self) -> None:
-        return                                            # Icom ATU not wired (has_tuner False)
+        # Start a tuning cycle (1C 01 02) — operator-triggered; briefly TRANSMITS a carrier to tune
+        # (same TX boundary as PTT). The radio self-limits the cycle; the hardware TOT set on connect
+        # is the backstop. Only while connected.
+        if not self.state.get("connected"):
+            return
+        self.state["tuner"] = 1
+        self._write(self._b(0x1C, 0x01, b"\x02"))
+        self._emit_state()
 
     def set_level(self, sub: int, value: int) -> None:
         key = LEVEL_KEYS.get(sub)
@@ -720,12 +753,47 @@ class Radio:
         self._write(self._b(0x0F, 0x10 + mode))
         self._emit_state()
 
-    # FM Tone/DCS + repeater-shift + NAR/WIDE + the Yaesu DSP/CW/operating controls —
-    # not yet implemented for Icom CI-V (the Yaesu handler implements them); no-op so
-    # the shared WS dispatch is safe.
-    def set_tone_mode(self, v: int) -> None: pass
-    def set_tone_freq(self, idx: int) -> None: pass
-    def set_dcs_code(self, idx: int) -> None: pass
+    # -- Icom operating controls: FM tone, APF, break-in, filter shape --------
+    def set_tone_mode(self, v: int) -> None:
+        # Icom has separate TONE (16 42) + TSQL (16 43) on/off, no DTCS over CI-V. Map the
+        # shared 0-4 tone-mode: 0 OFF, 1 TSQL, 2 TONE (DCS 3/4 unsupported -> treated as OFF).
+        v = int(v)
+        tone = 1 if v == 2 else 0
+        tsql = 1 if v == 1 else 0
+        self.state["tone_mode"] = v if v in (1, 2) else 0
+        self._write(self._b(0x16, 0x42, bytes([tone])))
+        self._write(self._b(0x16, 0x43, bytes([tsql])))
+        self._emit_state()
+
+    def set_tone_freq(self, idx: int) -> None:
+        idx = max(0, min(len(civ.CTCSS_TONES) - 1, int(idx)))     # CTCSS tone by table index
+        self.state["tone_freq"] = idx
+        bcd = civ.tone_to_bcd(civ.CTCSS_TONES[idx])
+        self._write(self._b(0x1B, 0x00, bcd))                     # repeater tone freq
+        self._write(self._b(0x1B, 0x01, bcd))                     # TSQL freq (kept in sync)
+        self._emit_state()
+
+    def set_dcs_code(self, idx: int) -> None:
+        return                                                    # IC-7300MK2 CI-V has no DTCS
+
+    def set_apf_lvl(self, v: int) -> None:
+        v = max(0, min(3, int(v)))                                # 16 32: 0 OFF/1 WIDE/2 MID/3 NAR
+        self.state["apf"] = v
+        self._write(self._b(0x16, 0x32, bytes([v])))
+        self._emit_state()
+
+    def set_bkin_lvl(self, v: int) -> None:
+        v = max(0, min(2, int(v)))                                # 16 47: 0 OFF/1 SEMI/2 FULL
+        self.state["bkin"] = v
+        self._write(self._b(0x16, 0x47, bytes([v])))
+        self._emit_state()
+
+    def set_filter_shape(self, on: bool) -> None:
+        self.state["filter_shape"] = 1 if on else 0               # 16 56: 0 SHARP/1 SOFT
+        self._write(self._b(0x16, 0x56, bytes([1 if on else 0])))
+        self._emit_state()
+
+    # Yaesu-only operating controls — no-op on Icom so the shared WS dispatch is safe.
     def set_rpt_shift(self, v: int) -> None: pass
     def set_narrow(self, on: bool) -> None: pass
     def set_width(self, code: int) -> None: pass

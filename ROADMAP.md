@@ -7,6 +7,14 @@ Each radio is a **declarative `RadioProfile`** in `backend/profiles.py` — tran
 
 ## Done
 
+### v0.2.21 — IC-7300MK2 operating controls
+- Filled the Icom operating-control gaps: **internal ATU** (`1C 01`, reuses TUNER/TUNE),
+  **FM tone/TSQL + CTCSS freq** (`16 42/43`, `1B 00`), an **Icom CW/filter group** (APF `16 32`,
+  break-in `16 47`, CW pitch `14 09`, keyer speed `14 0C`, filter shape `16 56`), and **3-state
+  preamp**. FM panel made adaptive (`fm_dcs` cap hides DCS on Icom). New caps `fm_dcs` / `icom_cw`.
+  Remaining tracked in [docs/IC-7300MK2-SETTINGS-AUDIT.md](docs/IC-7300MK2-SETTINGS-AUDIT.md);
+  most commands are shared with the IC-9700.
+
 ### v0.2.20 — FT-991A operating controls, rounded out
 - **WIDTH** (`SH`, per-mode stepper), **CONTOUR** + **APF** (`CO`), the **CW cluster**
   (break-in/keyer/speed/pitch/spot/zero-in), **TXW**/**Quick Split**/**Parametric EQ**, **SCAN**

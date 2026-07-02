@@ -873,6 +873,7 @@ class YaesuRadio:
 
     set_mnotch_w = set_tbw = set_duplex = _noop
     set_span = set_scope_mode = _noop
+    set_apf_lvl = set_bkin_lvl = set_filter_shape = _noop   # Icom-only operating controls
 
     _METER_FIELDS = ("smeter", "smeter_s", "meter_val")
 
